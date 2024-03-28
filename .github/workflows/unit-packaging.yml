@@ -5,7 +5,7 @@ on:
 
 jobs:
   deb-packaging:
-    if: ${{ ( github.repository == 'nginx/unit' || github.repository == 'nginx/ci-check-self-hosted-unit' ) && github.event_name == 'push' && ( github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' }}
+    if: ${{ ( github.repository == 'nginx/unit' || github.repository == 'nginx/ci-check-self-hosted-unit' ) && github.event_name == 'push' && ( github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' ) }}
     runs-on: [ self-hosted, "${{ matrix.os }}-${{ matrix.arch }}" ]
     strategy:
       fail-fast: false
