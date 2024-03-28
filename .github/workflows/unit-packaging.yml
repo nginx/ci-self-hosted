@@ -1,0 +1,24 @@
+name: Unit packaging checks workflow
+
+on:
+  workflow_call:
+
+jobs:
+  deb-packaging:
+    if: ${{ ( github.repository == 'nginx/unit' || github.repository == 'nginx/ci-check-self-hosted-unit' ) && github.event_name == 'push' && github.ref = 'refs/heads/master' }}
+    runs-on: [ self-hosted, "${{ matrix.os }}-${{ matrix.arch }}" ]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-22.04 ]
+        arch: [ amd64 ]
+
+    steps:
+      - name: dump the environment
+        run: |
+          env
+
+      - name: Dump GitHub context
+        env:
+          GITHUB_CONTEXT: ${{ toJson(github) }}
+        run: echo "$GITHUB_CONTEXT"
