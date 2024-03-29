@@ -29,7 +29,7 @@ jobs:
             if [ "$event" == "$GITHUB_EVENT_NAME" ]; then event_found=1; fi
           done
           for ref in $ALLOWED_REFS; do
-            if [ "$ref == "$GITHUB_REF" ]; then ref_found=1;fi
+            if [ "$ref" == "$GITHUB_REF" ]; then ref_found=1; fi
           done
           echo $org_found$event_found$ref_found
 
