@@ -5,7 +5,7 @@ on:
 
 jobs:
   deb-packaging:
-    if: ${{ ( github.repository == 'nginx/unit' || github.repository == 'nginx/ci-check-self-hosted-unit' ) && github.event_name == 'push' && ( github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' ) }}
+    if: ${{ ( github.repository_owner == 'nginx' || github.repository == 'nginxinc' ) && github.event_name == 'push' && ( github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' ) }}
     runs-on: [ self-hosted, "${{ matrix.os }}-${{ matrix.arch }}" ]
     strategy:
       fail-fast: false
@@ -14,9 +14,33 @@ jobs:
         arch: [ amd64 ]
 
     steps:
+      - name: check if we're in the allowed environment
+        run: |
+          org_found=0
+          event_found=0
+          ref_found=0
+          ALLOWED_ORGS="nginx nginxinc"
+          ALLOWED_EVENTS="push"
+          ALLOWED_REFS="refs/heads/main refs/heads/master"
+          for org in $ALLOWED_ORGS; do
+            if [ "$org" == "$GITHUB_REPOSITORY_OWNER" ]; then org_found=1; fi
+          done
+          for event in $ALLOWED_ORGS; do
+            if [ "$event" == "$GITHUB_EVENT_NAME" ]; then event_found=1; fi
+          done
+          for ref in $ALLOWED_REFS; do
+            if [ "$ref == "$GITHUB_REF" ]; then ref_found=1;fi
+          done
+          echo $org_found$event_found$ref_found
+
       - name: dump the environment
         run: |
           env
+
+      - name: Dump env context
+        env:
+          ENV_CONTEXT ${{ toJson(env) }}
+        run: echo "$ENV_CONTEXT"
 
       - name: Dump GitHub context
         env:
