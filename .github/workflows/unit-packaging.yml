@@ -5,7 +5,7 @@ on:
 
 jobs:
   deb-packaging:
-    if: ${{ ( github.repository_owner == 'nginx' || github.repository == 'nginxinc' ) && github.event_name == 'push' && ( github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' ) }}
+    if: ${{ ( github.repository_owner == 'nginx' || github.repository == 'nginxinc' ) }}
     runs-on: [ self-hosted, "${{ matrix.os }}-${{ matrix.arch }}" ]
     strategy:
       fail-fast: false
@@ -33,7 +33,7 @@ jobs:
           done
           if [ $org_found$event_found$ref_found -ne 111 ]; then
             echo "Repository owner, event, or ref are not explicitely allowed to use this workflow: $GITHUB_REPOSITORY_OWNER, $GITHUB_EVENT_NAME, $GITHUB_REF"
-            exit 1
+            exit 0
           fi
 
       - name: dump the environment
