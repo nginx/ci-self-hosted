@@ -5,7 +5,7 @@ on:
 
 jobs:
   deb-packaging:
-    if: ${{ ( github.repository_owner == 'nginx' || github.repository == 'nginxinc' ) }}
+    if: ${{ ( github.repository_owner == 'nginx' || github.repository_owner == 'nginxinc' ) }}
     runs-on: [ self-hosted, "${{ matrix.os }}-${{ matrix.arch }}" ]
     strategy:
       fail-fast: false
