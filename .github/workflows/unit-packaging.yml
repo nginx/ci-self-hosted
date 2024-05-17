@@ -55,7 +55,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ amazonlinux-2, amazonlinux-2023, fedora38, fedora39, rhel-7, rhel-8, rhel-9 ]
+        os: [ amazonlinux-2, amazonlinux-2023, fedora-38, fedora-39, rhel-7, rhel-8, rhel-9 ]
         arch: [ amd64, arm64 ]
         exclude:
           - os: rhel-7 # AWS does not provide an RHEL 7 arm64 AMI
