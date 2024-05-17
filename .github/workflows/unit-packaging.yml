@@ -4,15 +4,9 @@ on:
   workflow_call:
 
 jobs:
-  deb-packaging:
+  check-if-allowed:
     if: ${{ ( github.repository_owner == 'nginx' || github.repository_owner == 'nginxinc' ) }}
-    runs-on: [ "${{ matrix.os }}-${{ matrix.arch }}" ]
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ ubuntu-22.04 ]
-        arch: [ amd64 ]
-
+    runs-on: [ ubuntu-latest ]
     steps:
       - name: Check if we're in the allowed environment
         run: |
@@ -33,19 +27,55 @@ jobs:
           done
           if [ $org_found$event_found$ref_found -ne 111 ]; then
             echo "Repository owner, event, or ref are not explicitely allowed to use this workflow: $GITHUB_REPOSITORY_OWNER, $GITHUB_EVENT_NAME, $GITHUB_REF"
-            exit 0
+            exit 1
           fi
+          exit 0
 
-      - name: dump the environment
+  deb-packaging:
+    runs-on: [ "${{ matrix.os }}-${{ matrix.arch }}" ]
+    needs: check-if-allowed
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ debian-11, debian-12, ubuntu-20.04, ubuntu-22.04, ubuntu-23.10 ]
+        arch: [ amd64, arm64 ]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: deb packaging
         run: |
-          env
+          cd pkg/deb
+          make unit
+          make modules
 
-      - name: Dump env context
-        env:
-          ENV_CONTEXT: ${{ toJson(env) }}
-        run: echo "$ENV_CONTEXT"
+  rpm-packaging:
+    runs-on: [ "${{ matrix.os }}-${{ matrix.arch }}" ]
+    needs: check-if-allowed
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ amazonlinux-2, amazonlinux-2023, fedora38, fedora39, rhel-7, rhel-8, rhel-9 ]
+        arch: [ amd64, arm64 ]
+      exclude:
+        - os: rhel-7 # AWS does not provide an RHEL 7 arm64 AMI
+          arch: arm64
+        - os: fedora-38
+          arch: arm64
+        - os: fedora-39
+          arch: arm64
 
-      - name: Dump GitHub context
-        env:
-          GITHUB_CONTEXT: ${{ toJson(github) }}
-        run: echo "$GITHUB_CONTEXT"
+    steps:
+      - name: checkout v3
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+        if: ${{ matrix.os == 'amazonlinux-2' || matrix.os == 'rhel-7' }}
+
+      - name: checkout v4
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        if: ${{ matrix.os != 'amazonlinux-2' && matrix.os != 'rhel-7' }}
+
+      - name: rpm packaging
+        run: |
+          cd pkg/rpm
+          make unit
+          make modules
