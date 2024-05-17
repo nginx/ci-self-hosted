@@ -51,7 +51,7 @@ jobs:
       - name: install build-depends
         run: |
           cd pkg/deb
-          MISSING_BUILD_DEPS="$(make check-build-depends-all 2>&1 | grep -vE '^$|^The following|^make:|^touch') debhelper"
+          MISSING_BUILD_DEPS="$(make check-build-depends-all 2>&1 | grep -vE '^$|^The following|^make:|^touch') debhelper ruby-dev"
           sudo apt-get update
           sudo apt-get install -y --no-install-suggests --no-install-recommends $MISSING_BUILD_DEPS
 
