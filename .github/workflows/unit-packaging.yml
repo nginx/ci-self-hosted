@@ -43,6 +43,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+
       - name: install build-depends
         run: |
           cd pkg/deb
@@ -80,6 +82,8 @@ jobs:
       - name: checkout v4
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         if: ${{ matrix.os != 'amazonlinux-2' && matrix.os != 'rhel-7' }}
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
 
       - name: install build-depends
         run: |
