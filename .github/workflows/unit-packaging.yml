@@ -47,6 +47,7 @@ jobs:
         run: |
           cd pkg/deb
           MISSING_BUILD_DEPS=$(make check-build-depends-all 2>&1 | grep -vE '^$|^The following|^make:')
+          sudo apt-get update
           sudo apt-get install -y --no-install-suggests --no-install-recommends $MISSING_BUILD_DEPS
 
       - name: deb packaging
@@ -84,6 +85,7 @@ jobs:
         run: |
           cd pkg/rpm
           MISSING_BUILD_DEPS=$(make check-build-depends-all 2>&1 | grep -vE '^$|^The following|^make:')
+          sudo yum makecache
           sudo yum install -y $MISSING_BUILD_DEPS
 
       - name: rpm packaging
