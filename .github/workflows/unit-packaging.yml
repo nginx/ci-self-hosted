@@ -31,7 +31,7 @@ jobs:
           fi
           exit 0
 
-  deb-packaging:
+  deb:
     runs-on: [ "${{ matrix.os }}-${{ matrix.arch }}" ]
     needs: check-if-allowed
     strategy:
@@ -43,13 +43,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: install build-depends
+        run: |
+          cd pkg/deb
+          MISSING_BUILD_DEPS=$(make check-build-depends-all 2>&1 | grep -vE '^$|^The following|^make:')
+          apt-get install -y --no-install-suggests --no-install-recommends $MISSING_BUILD_DEPS
+
       - name: deb packaging
         run: |
           cd pkg/deb
           make unit
           make modules
 
-  rpm-packaging:
+  rpm:
     runs-on: [ "${{ matrix.os }}-${{ matrix.arch }}" ]
     needs: check-if-allowed
     strategy:
@@ -73,6 +79,12 @@ jobs:
       - name: checkout v4
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         if: ${{ matrix.os != 'amazonlinux-2' && matrix.os != 'rhel-7' }}
+
+      - name: install build-depends
+        run: |
+          cd pkg/rpm
+          MISSING_BUILD_DEPS=$(make check-build-depends-all 2>&1 | grep -vE '^$|^The following|^make:')
+          yum install -y $MISSING_BUILD_DEPS
 
       - name: rpm packaging
         run: |
