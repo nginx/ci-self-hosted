@@ -47,6 +47,7 @@ jobs:
         with:
           toolchain: 1.75.0
           cache: false
+          rustflags: ''
 
       - name: install build-depends
         run: |
@@ -90,6 +91,7 @@ jobs:
         with:
           toolchain: 1.75.0
           cache: false
+          rustflags: ''
 
       - name: install build-depends
         run: |
