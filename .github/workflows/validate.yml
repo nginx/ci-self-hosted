@@ -1,0 +1,30 @@
+name: Validate YAML
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - '**/*.yaml'
+      - '**/*.yml'
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - '**/*.yaml'
+      - '**/*.yml'
+
+  workflow_dispatch:
+    jobs:
+      yaml-syntax-check:
+        runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+
+    steps:
+      - name: checkout v4
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+
+      - name: validate yaml files
+        run: |
+          for y in $(find . -type f -name "*.yaml" -or -name ".yml"); do
+            yq '.' $y;
+          done
