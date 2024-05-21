@@ -24,6 +24,6 @@ jobs:
 
       - name: validate yaml files
         run: |
-          for y in $(find . -type f -name "*.yaml" -or -name ".yml"); do
+          for y in $(find . -type f -name "*.yaml" -or -name "*.yml"); do
             yq '.' $y;
           done
