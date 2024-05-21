@@ -1,0 +1,239 @@
+name: ci
+
+on:
+  workflow_call:
+
+jobs:
+  check-if-allowed:
+    if: ${{ ( github.repository_owner == 'nginx' || github.repository_owner == 'nginxinc' ) }}
+    runs-on: [ ubuntu-latest ]
+    steps:
+      - name: Check if we're in the allowed environment
+        run: |
+          org_found=0
+          event_found=0
+          ref_found=0
+          ALLOWED_ORGS="nginx nginxinc"
+          ALLOWED_EVENTS="push"
+          ALLOWED_REFS="refs/heads/main refs/heads/master"
+          for org in $ALLOWED_ORGS; do
+            if [ "$org" == "$GITHUB_REPOSITORY_OWNER" ]; then org_found=1; fi
+          done
+          for event in $ALLOWED_EVENTS; do
+            if [ "$event" == "$GITHUB_EVENT_NAME" ]; then event_found=1; fi
+          done
+          for ref in $ALLOWED_REFS; do
+            if [ "$ref" == "$GITHUB_REF" ]; then ref_found=1; fi
+          done
+          if [ $org_found$event_found$ref_found -ne 111 ]; then
+            echo "Repository owner, event, or ref are not explicitely allowed to use this workflow: $GITHUB_REPOSITORY_OWNER, $GITHUB_EVENT_NAME, $GITHUB_REF"
+            exit 1
+          fi
+          exit 0
+
+  test:
+    runs-on: [ "${{ matrix.os }}-${{ matrix.arch }}" ]
+    needs: check-if-allowed
+    strategy:
+      matrix:
+        os: [ alpine-3.19, amazonlinux-2, amazonlinux-2023, debian-11, debian-12, freebsd-14, rhel-7, rhel-8, rhel-9, ubuntu-20.04, ubuntu-22.04, ubuntu-23.10 ]
+        arch: [ amd64, arm64 ]
+        exclude:
+          - os: rhel-7 # AWS does not provide an RHEL 7 arm64 AMI
+            arch: arm64
+          - os: freebsd-14 # we don't have arm64 builder for freebsd-14 yet
+            arch: arm64
+      fail-fast: false
+
+    steps:
+      - name: checkout v3
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+        if: ${{ matrix.os == 'amazonlinux-2' || matrix.os == 'rhel-7' }}
+
+      - name: checkout v4
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        if: ${{ matrix.os != 'amazonlinux-2' && matrix.os != 'rhel-7' }}
+
+      - name: Set the defaults and set up environment
+        run: |
+            ENV_JSON=$(cat <<EOF
+            {
+            "alpine-3.19": {
+              "NGINX_CONFIGURE_CMD_APPEND": "--with-http_geoip_module --with-stream_geoip_module",
+              "CC_OPT": "$(. /usr/share/abuild/default.conf; echo $CFLAGS)",
+              "LD_OPT": "$(. /usr/share/abuild/default.conf; echo $LDFLAGS)",
+              "type": "apk"
+            },
+            "amazonlinux-2": {
+              "NGINX_CONFIGURE_CMD_APPEND": "--with-http_geoip_module --with-stream_geoip_module",
+              "CC_OPT": "$(rpm --eval %{optflags}) $(pcre2-config --cflags) -fPIC",
+              "LD_OPT": "-Wl,-z,relro -Wl,-z,now",
+              "type": "rpm"
+            },
+            "amazonlinux-2023": {
+              "CC_OPT": "$(rpm --eval %{optflags}) $(pcre2-config --cflags) -fPIC",
+              "LD_OPT": "-Wl,-z,relro -Wl,-z,now",
+              "type": "rpm"
+            },
+            "debian-11": {
+              "NGINX_CONFIGURE_CMD_APPEND": "--with-http_geoip_module --with-stream_geoip_module",
+              "DEB_BUILD_MAINT_OPTIONS": "hardening=+all",
+              "DEB_CFLAGS_MAINT_APPEND": "-Wp,-D_FORTIFY_SOURCE=2 -fPIC",
+              "DEB_LDFLAGS_MAINT_APPEND": "-Wl,--as-needed",
+              "CC_OPT": "dpkg-buildflags --get CFLAGS",
+              "LD_OPT": "dpkg-buildflags --get LDFLAGS",
+              "type": "deb"
+            },
+            "debian-12": {
+              "NGINX_CONFIGURE_CMD_APPEND": "--with-http_geoip_module --with-stream_geoip_module",
+              "DEB_BUILD_MAINT_OPTIONS": "hardening=+all",
+              "DEB_CFLAGS_MAINT_APPEND": "-Wp,-D_FORTIFY_SOURCE=2 -fPIC",
+              "DEB_LDFLAGS_MAINT_APPEND": "-Wl,--as-needed",
+              "CC_OPT": "dpkg-buildflags --get CFLAGS",
+              "LD_OPT": "dpkg-buildflags --get LDFLAGS",
+              "type": "deb"
+            },
+            "freebsd-14": {
+              "CC_OPT": "-I/usr/local/include -Wno-compound-token-split-by-macro",
+              "LD_OPT": "-L/usr/local/lib -Wl,-z,relro -Wl,-z,now",
+              "type": "bsd"
+            },
+            "rhel-7": {
+              "NGINX_CONFIGURE_CMD_APPEND": "--with-http_geoip_module --with-stream_geoip_module",
+              "CC_OPT": "$(rpm --eval %{optflags}) $(pcre2-config --cflags) -fPIC",
+              "LD_OPT": "-Wl,-z,relro -Wl,-z,now",
+              "type": "rpm"
+            },
+            "rhel-8": {
+              "CC_OPT": "$(rpm --eval %{optflags}) $(pcre2-config --cflags) -fPIC",
+              "LD_OPT": "-Wl,-z,relro -Wl,-z,now",
+              "type": "rpm"
+            },
+            "rhel-9": {
+              "CC_OPT": "$(rpm --eval %{optflags}) $(pcre2-config --cflags) -fPIC",
+              "LD_OPT": "-Wl,-z,relro -Wl,-z,now",
+              "type": "rpm"
+            },
+            "ubuntu-20.04": {
+              "NGINX_CONFIGURE_CMD_APPEND": "--with-http_geoip_module --with-stream_geoip_module",
+              "DEB_BUILD_MAINT_OPTIONS": "hardening=+all",
+              "DEB_CFLAGS_MAINT_APPEND": "-Wp,-D_FORTIFY_SOURCE=2 -fPIC",
+              "DEB_LDFLAGS_MAINT_APPEND": "-Wl,--as-needed",
+              "CC_OPT": "dpkg-buildflags --get CFLAGS",
+              "LD_OPT": "dpkg-buildflags --get LDFLAGS",
+              "type": "deb"
+            },
+            "ubuntu-22.04": {
+              "NGINX_CONFIGURE_CMD_APPEND": "--with-http_geoip_module --with-stream_geoip_module",
+              "DEB_BUILD_MAINT_OPTIONS": "hardening=+all",
+              "DEB_CFLAGS_MAINT_APPEND": "-Wp,-D_FORTIFY_SOURCE=2 -fPIC",
+              "DEB_LDFLAGS_MAINT_APPEND": "-Wl,--as-needed",
+              "CC_OPT": "dpkg-buildflags --get CFLAGS",
+              "LD_OPT": "dpkg-buildflags --get LDFLAGS",
+              "type": "deb"
+            },
+            "ubuntu-23.10": {
+              "NGINX_CONFIGURE_CMD_APPEND": "--with-http_geoip_module --with-stream_geoip_module",
+              "DEB_BUILD_MAINT_OPTIONS": "hardening=+all",
+              "DEB_CFLAGS_MAINT_APPEND": "-Wp,-D_FORTIFY_SOURCE=2 -fPIC",
+              "DEB_LDFLAGS_MAINT_APPEND": "-Wl,--as-needed",
+              "CC_OPT": "dpkg-buildflags --get CFLAGS",
+              "LD_OPT": "dpkg-buildflags --get LDFLAGS",
+              "type": "deb"
+            },
+            "NGINX_CONFIGURE_CMD": "auto/configure --prefix=/tmp --with-http_ssl_module --with-http_realip_module --with-http_addition_module --with-http_sub_module --with-http_dav_module --with-http_flv_module --with-http_mp4_module --with-http_gunzip_module --with-http_gzip_static_module --with-http_random_index_module --with-http_secure_link_module --with-http_stub_status_module --with-mail --with-mail_ssl_module --with-select_module --with-poll_module --with-http_auth_request_module --with-http_v2_module --with-http_slice_module --with-stream --with-stream_ssl_module --with-stream_ssl_preread_module --with-stream_realip_module --with-threads --with-cpp_test_module --with-compat --with-http_degradation_module --with-http_xslt_module --with-http_image_filter_module --with-http_perl_module"
+            }
+            EOF
+            )
+
+            case "$(echo $ENV_JSON | jq -r '."${{ matrix.os }}".type')" in
+              "apk"|"rpm"|"bsd")
+                echo CC_OPT=$(echo $ENV_JSON | jq -r '."${{ matrix.os }}".CC_OPT') >> $GITHUB_ENV
+                echo LD_OPT=$(echo $ENV_JSON | jq -r '."${{ matrix.os }}".LD_OPT') >> $GITHUB_ENV
+                ;;
+              "deb")
+                export DEB_BUILD_MAINT_OPTIONS=$(echo $ENV_JSON | jq -r '."${{ matrix.os }}".DEB_BUILD_MAINT_OPTIONS')
+                export DEB_CFLAGS_MAINT_APPEND=$(echo $ENV_JSON | jq -r '."${{ matrix.os }}".DEB_CFLAGS_MAINT_APPEND')
+                export DEB_LDFLAGS_MAINT_APPEND=$(echo $ENV_JSON | jq -r '."${{ matrix.os }}".DEB_LDFLAGS_MAINT_APPEND')
+                CC_OPT=$(echo $ENV_JSON | jq -r '."${{ matrix.os }}".CC_OPT')
+                echo CC_OPT=$($CC_OPT) >> $GITHUB_ENV
+                LD_OPT=$(echo $ENV_JSON | jq -r '."${{ matrix.os }}".LD_OPT')
+                echo LD_OPT=$($LD_OPT) >> $GITHUB_ENV
+                ;;
+              "*")
+                echo "Unknown OS type, exiting"
+                exit 1
+                ;;
+            esac
+
+            echo NGINX_CONFIGURE_CMD=$(echo $ENV_JSON | jq -r '.NGINX_CONFIGURE_CMD + " " + ."${{ matrix.os }}".NGINX_CONFIGURE_CMD_APPEND') >> $GITHUB_ENV
+
+            case "${{ matrix.os }}" in
+              freebsd-*)
+                echo MAKE_UTILITY=gmake >> $GITHUB_ENV
+                ;;
+              *)
+                echo MAKE_UTILITY=make >> $GITHUB_ENV
+                ;;
+            esac
+
+      - name: Check out nginx
+        run: |
+          git clone https://github.com/nginx/nginx nginx-source
+
+      - name: Check out nginx tests
+        run: |
+          git clone https://github.com/nginx/nginx-tests
+
+      - name: Check out and build quickjs
+        if: ${{ matrix.os != 'rhel-7' }}
+        run: |
+          git clone https://github.com/bellard/quickjs
+          cd quickjs && curl -OL http://pp.nginx.com/pluknet/quickjs.patch && git apply quickjs.patch
+          $MAKE_UTILITY -j$(nproc)
+
+      - name: Configure and make njs
+        run: |
+          ./configure \
+                    --cc-opt="$CC_OPT" \
+                    --ld-opt="$LD_OPT" \
+          || cat build/autoconf.err
+          $MAKE_UTILITY -j$(nproc)
+
+      - name: Test njs
+        run: |
+          $MAKE_UTILITY test
+          $MAKE_UTILITY clean
+
+      - name: Configure and make njs with quickjs
+        if: ${{ matrix.os != 'rhel-7' }}
+        run: |
+          ./configure \
+                    --with-quickjs \
+                    --cc-opt="$CC_OPT -Iquickjs" \
+                    --ld-opt="$LD_OPT -Lquickjs" \
+          || cat build/autoconf.err
+          $MAKE_UTILITY -j$(nproc)
+
+      - name: Test njs with quickjs
+        if: ${{ matrix.os != 'rhel-7' }}
+        run: |
+          $MAKE_UTILITY test
+          $MAKE_UTILITY clean
+
+      - name: Configure and build nginx and njs modules
+        run: |
+          cd nginx-source
+          $NGINX_CONFIGURE_CMD --with-cc-opt="$CC_OPT" --with-ld-opt="$LD_OPT" --add-dynamic-module=../nginx || cat objs/autoconf.err
+          $MAKE_UTILITY -j$(nproc) modules
+          $MAKE_UTILITY -j$(nproc)
+
+      - name: Test njs modules
+        run: |
+          ulimit -c unlimited
+          prove -v -j$(nproc) -Inginx-tests/lib --state=save nginx/t . || prove -v --state=failed
+        env:
+          TEST_NGINX_BINARY: "${{ github.workspace }}/nginx-source/objs/nginx"
+          TEST_NGINX_GLOBALS: "load_module ${{ github.workspace }}/nginx-source/objs/ngx_http_js_module.so; load_module ${{ github.workspace }}/nginx-source/objs/ngx_stream_js_module.so;"
+          TEST_NGINX_VERBOSE: 1
+
