@@ -13,11 +13,10 @@ on:
       - '**/*.yml'
 
   workflow_dispatch:
-    jobs:
-      yaml-syntax-check:
-        runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
+
+jobs:
+  yaml-syntax-check:
+    runs-on: ubuntu-24.04
 
     steps:
       - name: checkout v4
