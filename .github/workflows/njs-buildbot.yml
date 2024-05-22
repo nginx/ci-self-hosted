@@ -237,3 +237,55 @@ jobs:
           TEST_NGINX_GLOBALS: "load_module ${{ github.workspace }}/nginx-source/objs/ngx_http_js_module.so; load_module ${{ github.workspace }}/nginx-source/objs/ngx_stream_js_module.so;"
           TEST_NGINX_VERBOSE: 1
 
+  asan:
+    runs-on: [ ubuntu-22.04-amd64 ]
+    needs: check-if-allowed
+
+    steps:
+      - name: checkout v4
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+
+      - name: Check out nginx
+        run: |
+          git clone https://github.com/nginx/nginx nginx-source
+
+      - name: Check out nginx tests
+        run: |
+          git clone https://github.com/nginx/nginx-tests
+
+      - name: Configure and make njs
+        run: |
+          ./configure \
+          || cat build/autoconf.err
+          make -j$(nproc)
+        env:
+          CFLAGS: "-O1 -g -fsanitize=address -fno-omit-frame-pointer -DNJS_DEBUG_MEMORY"
+
+      - name: Test njs
+        run: |
+          make test
+          make clean
+        env:
+          CFLAGS: "-O1 -g -fsanitize=address -fno-omit-frame-pointer -DNJS_DEBUG_MEMORY"
+
+      - name: Configure and build nginx and njs modules
+        run: |
+          cd nginx-source
+          $NGINX_CONFIGURE_CMD --with-cc-opt="$CC_OPT" --with-ld-opt="$LD_OPT" --add-dynamic-module=../nginx || cat objs/autoconf.err
+          make -j$(nproc) modules
+          make -j$(nproc)
+        env:
+          NGINX_CONFIGURE_CMD: "auto/configure --prefix=/tmp --with-http_ssl_module --with-http_realip_module --with-http_addition_module --with-http_sub_module --with-http_dav_module --with-http_flv_module --with-http_mp4_module --with-http_gunzip_module --with-http_gzip_static_module --with-http_random_index_module --with-http_secure_link_module --with-http_stub_status_module --with-mail --with-mail_ssl_module --with-select_module --with-poll_module --with-http_auth_request_module --with-http_v2_module --with-http_slice_module --with-stream --with-stream_ssl_module --with-stream_ssl_preread_module --with-stream_realip_module --with-threads --with-cpp_test_module --with-compat --with-http_degradation_module --with-http_v3_module --with-http_xslt_module --with-http_image_filter_module --with-http_geoip_module --with-stream_geoip_module --with-http_perl_module"
+          CC_OPT: "-O1 -g -fsanitize=address -fno-omit-frame-pointer -DNGX_DEBUG_PALLOC -DNGX_DEBUG_MALLOC -DNGX_QUIC_DEBUG_PACKETS -DNGX_QUIC_DEBUG_FRAMES -DNGX_QUIC_DEBUG_ALLOC -DNGX_QUIC_DEBUG_CRYPTO"
+          LD_OPT: "-fsanitize=address -lcrypt"
+
+      - name: Test njs modules
+        run: |
+          ulimit -c unlimited
+          prove -v -j$(nproc) -Inginx-tests/lib --state=save nginx/t . || prove -v --state=failed
+        env:
+          ASAN_OPTIONS: "detect_odr_violation=0:report_globals=0:detect_leaks=0"
+          TEST_NGINX_BINARY: "${{ github.workspace }}/nginx-source/objs/nginx"
+          TEST_NGINX_GLOBALS: "load_module ${{ github.workspace }}/nginx-source/objs/ngx_http_js_module.so; load_module ${{ github.workspace }}/nginx-source/objs/ngx_stream_js_module.so;"
+          TEST_NGINX_VERBOSE: 1
+
