@@ -305,7 +305,7 @@ jobs:
           make -j$(nproc)
         env:
           NGINX_CONFIGURE_CMD: "auto/configure --prefix=/tmp --with-http_ssl_module --with-http_realip_module --with-http_addition_module --with-http_sub_module --with-http_dav_module --with-http_flv_module --with-http_mp4_module --with-http_gunzip_module --with-http_gzip_static_module --with-http_random_index_module --with-http_secure_link_module --with-http_stub_status_module --with-mail --with-mail_ssl_module --with-select_module --with-poll_module --with-http_auth_request_module --with-http_v2_module --with-http_slice_module --with-stream --with-stream_ssl_module --with-stream_ssl_preread_module --with-stream_realip_module --with-threads --with-cpp_test_module --with-compat --with-http_degradation_module --with-http_v3_module --with-http_xslt_module --with-http_image_filter_module --with-http_geoip_module --with-stream_geoip_module --with-http_perl_module"
-          CC_OPT: "-O1 -g -fsanitize=address -fno-omit-frame-pointer -DNGX_DEBUG_PALLOC -DNGX_DEBUG_MALLOC -DNGX_QUIC_DEBUG_PACKETS -DNGX_QUIC_DEBUG_FRAMES -DNGX_QUIC_DEBUG_ALLOC -DNGX_QUIC_DEBUG_CRYPTO"
+          CC_OPT: "-O1 -g -fsanitize=address -fno-omit-frame-pointer -DNJS_DEBUG_MEMORY -DNGX_DEBUG_PALLOC -DNGX_DEBUG_MALLOC -DNGX_QUIC_DEBUG_PACKETS -DNGX_QUIC_DEBUG_FRAMES -DNGX_QUIC_DEBUG_ALLOC -DNGX_QUIC_DEBUG_CRYPTO"
           LD_OPT: "-fsanitize=address -lcrypt"
 
       - name: Test njs modules
@@ -318,3 +318,66 @@ jobs:
           TEST_NGINX_GLOBALS: "load_module ${{ github.workspace }}/nginx-source/objs/ngx_http_js_module.so; load_module ${{ github.workspace }}/nginx-source/objs/ngx_stream_js_module.so;"
           TEST_NGINX_VERBOSE: 1
 
+  msan:
+    runs-on: [ ubuntu-22.04-amd64 ]
+    needs: check-if-allowed
+    env:
+      ASAN_SYMBOLIZER_PATH: "/usr/bin/llvm-symbolizer-15"
+      CC: clang-15
+      CFLAGS: "-O0 -g -fsanitize=memory -fsanitize-memory-track-origins -fPIE"
+
+    steps:
+      - name: checkout v4
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+
+      - name: Build pcre2
+        run: |
+          apt-get source libpcre2-8-0
+          cd pcre2-10.*
+          autoreconf -f -i
+          ./configure --prefix=${{ github.workspace }}/pcre2/
+          make all
+          make install
+        env:
+          LDFLAGS: "-fsanitize-memory"
+
+      - name: Configure and make njs (pcre2)
+        run: |
+          ./configure \
+            --no-openssl
+          || cat build/autoconf.err
+          make -j$(nproc)
+        env:
+          PATH: "${{ github.workspace }}/pcre2/bin/:$PATH"
+
+      - name: Test njs
+        run: |
+          make test
+          make clean
+
+      - name: Build pcre
+        run: |
+          apt-get source libpcre3
+          cd pcre-8.*
+          autoreconf -f -i
+          ./configure --disable-cpp --enable-utf8 --prefix=${{ github.workspace }}/pcre/
+          make all
+          make install
+          sed -i 's/\$libS\$libR \(-lpcre$\)/$libS$libR -Wl,-Bstatic \1 -Wl,-Bdynamic/' ${{ github.workspace }}/pcre/bin/pcre-config
+        env:
+          LDFLAGS: "-fsanitize-memory"
+
+      - name: Configure and make njs (pcre)
+        run: |
+          ./configure \
+            --no-openssl
+            --no-pcre2 \
+          || cat build/autoconf.err
+          make -j$(nproc)
+        env:
+          PATH: "${{ github.workspace }}/pcre/bin/:$PATH"
+
+      - name: Test njs
+        run: |
+          make test
+          make clean
