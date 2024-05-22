@@ -253,6 +253,11 @@ jobs:
         run: |
           git clone https://github.com/nginx/nginx-tests
 
+      - name: Fix kernel mmap rnd bits
+        # Asan in ubuntu 22.04 is incompatible with high-entropy ASLR in much
+        # newer kernels using leading to random crashes: https://reviews.llvm.org/D148280
+        run: sudo sysctl vm.mmap_rnd_bits=28
+
       - name: Configure and make njs
         run: |
           ./configure \
