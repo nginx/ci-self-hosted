@@ -240,6 +240,10 @@ jobs:
   asan:
     runs-on: [ ubuntu-22.04-amd64 ]
     needs: check-if-allowed
+    strategy:
+      matrix:
+        backend: [ njs, quickjs ]
+      fail-fast: false
 
     steps:
       - name: checkout v4
@@ -253,6 +257,13 @@ jobs:
         run: |
           git clone https://github.com/nginx/nginx-tests
 
+      - name: Check out and build quickjs
+        run: |
+          git clone https://github.com/bellard/quickjs
+          cd quickjs && curl -OL http://pp.nginx.com/pluknet/quickjs.patch && git apply quickjs.patch
+          make -j$(nproc)
+        if: matrix.backend == 'quickjs'
+
       - name: Fix kernel mmap rnd bits
         # Asan in ubuntu 22.04 is incompatible with high-entropy ASLR in much
         # newer kernels using leading to random crashes: https://reviews.llvm.org/D148280
@@ -265,6 +276,19 @@ jobs:
           make -j$(nproc)
         env:
           CFLAGS: "-O1 -g -fsanitize=address -fno-omit-frame-pointer -DNJS_DEBUG_MEMORY"
+        if: matrix.backend == 'njs'
+
+      - name: Configure and make njs with quickjs
+        run: |
+          ./configure \
+                    --with-quickjs \
+                    --cc-opt="-Iquickjs" \
+                    --ld-opt="-Lquickjs" \
+          || cat build/autoconf.err
+          make -j$(nproc)
+        env:
+          CFLAGS: "-O1 -g -fsanitize=address -fno-omit-frame-pointer -DNJS_DEBUG_MEMORY"
+        if: matrix.backend == 'quickjs'
 
       - name: Test njs
         run: |
