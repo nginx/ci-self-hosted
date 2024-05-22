@@ -332,14 +332,14 @@ jobs:
 
       - name: Build pcre2
         run: |
-          apt-get source libpcre2-8-0
+          apt-get update && apt-get source pcre2
           cd pcre2-10.*
           autoreconf -f -i
           ./configure --prefix=${{ github.workspace }}/pcre2/
-          make all
+          make -j$(nproc) all
           make install
         env:
-          LDFLAGS: "-fsanitize-memory"
+          LDFLAGS: "-fsanitize=memory"
 
       - name: Configure and make njs (pcre2)
         run: |
@@ -357,15 +357,15 @@ jobs:
 
       - name: Build pcre
         run: |
-          apt-get source libpcre3
-          cd pcre-8.*
+          apt-get update && apt-get source pcre3
+          cd pcre3-8.*
           autoreconf -f -i
           ./configure --disable-cpp --enable-utf8 --prefix=${{ github.workspace }}/pcre/
-          make all
+          make -j$(nproc) all
           make install
           sed -i 's/\$libS\$libR \(-lpcre$\)/$libS$libR -Wl,-Bstatic \1 -Wl,-Bdynamic/' ${{ github.workspace }}/pcre/bin/pcre-config
         env:
-          LDFLAGS: "-fsanitize-memory"
+          LDFLAGS: "-fsanitize=memory"
 
       - name: Configure and make njs (pcre)
         run: |
