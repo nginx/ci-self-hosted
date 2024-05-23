@@ -240,7 +240,7 @@ jobs:
       - name: Test njs modules
         run: |
           ulimit -c unlimited
-          prove -v -j$(nproc) -Inginx-tests/lib --state=save nginx/t . || prove -v --state=failed
+          prove -v -j$(nproc) -Inginx-tests/lib --state=save nginx/t . || prove -v -Inginx-tests/lib --state=failed
         env:
           TEST_NGINX_BINARY: "${{ github.workspace }}/nginx-source/objs/nginx"
           TEST_NGINX_GLOBALS: "load_module ${{ github.workspace }}/nginx-source/objs/ngx_http_js_module.so; load_module ${{ github.workspace }}/nginx-source/objs/ngx_stream_js_module.so;"
@@ -320,7 +320,7 @@ jobs:
       - name: Test njs modules
         run: |
           ulimit -c unlimited
-          prove -v -j$(nproc) -Inginx-tests/lib --state=save nginx/t . || prove -v --state=failed
+          prove -v -j$(nproc) -Inginx-tests/lib --state=save nginx/t . || prove -v -Inginx-tests/lib --state=failed
         env:
           ASAN_OPTIONS: "detect_odr_violation=0:report_globals=0:detect_leaks=0"
           TEST_NGINX_BINARY: "${{ github.workspace }}/nginx-source/objs/nginx"
