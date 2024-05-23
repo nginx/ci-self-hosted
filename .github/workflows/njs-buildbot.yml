@@ -44,7 +44,7 @@ jobs:
           - os: freebsd-14 # we don't have arm64 builder for freebsd-14 yet
             arch: arm64
         include:
-            os: debian-12
+          - os: debian-12
             arch: x86
       fail-fast: false
 
