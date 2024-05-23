@@ -351,11 +351,11 @@ jobs:
         run: |
           PATH="$(pwd)/pcre2/bin/:$PATH" \
           ./configure \
-            --no-openssl
+            --no-openssl \
           || cat build/autoconf.err
           make -j$(nproc)
 
-      - name: Test njs
+      - name: Test njs (pcre2)
         run: |
           make test
           make clean
@@ -376,12 +376,12 @@ jobs:
         run: |
           PATH="$(pwd)/pcre/bin/:$PATH" \
           ./configure \
-            --no-openssl
+            --no-openssl \
             --no-pcre2 \
           || cat build/autoconf.err
           make -j$(nproc)
 
-      - name: Test njs
+      - name: Test njs (pcre)
         run: |
           make test
           make clean
