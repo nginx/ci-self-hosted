@@ -420,4 +420,4 @@ jobs:
         run: |
           CC=clang-14 ./configure \
           || cat build/autoconf.err
-          make NJS_CFLAGS='-Xclang -load -Xclang ../clang-ast/ngx-ast.so -Xclang -plugin -Xclang ngx-ast' NJS_STATIC_LINK=: NJS_CC=clang-14 build/libnjs.a
+          make NJS_CFLAGS='-Xclang -load -Xclang clang-ast/ngx-ast.so -Xclang -plugin -Xclang ngx-ast' NJS_STATIC_LINK=: NJS_CC=clang-14 build/libnjs.a
