@@ -44,12 +44,9 @@ jobs:
           - os: freebsd-14 # we don't have arm64 builder for freebsd-14 yet
             arch: arm64
         include:
-          - os: debian-11
+          - variant: x86
+            os: debian-12
             arch: amd64
-            variant: x86
-          - os: debian-12
-            arch: amd64
-            variant: x86
       fail-fast: false
 
     steps:
@@ -165,10 +162,10 @@ jobs:
                 CC_OPT=$(echo $ENV_JSON | jq -r '."${{ matrix.os }}".CC_OPT')
                 case "${{ matrix.variant }}" in
                   x86)
-                    CC_OPT="$CC_OPT -m32"
+                    CC_OPT_ADD="-m32"
                   ;;
                 esac
-                echo CC_OPT=$($CC_OPT) >> $GITHUB_ENV
+                echo CC_OPT="$CC_OPT_ADD $($CC_OPT)" >> $GITHUB_ENV
                 LD_OPT=$(echo $ENV_JSON | jq -r '."${{ matrix.os }}".LD_OPT')
                 echo LD_OPT=$($LD_OPT) >> $GITHUB_ENV
                 ;;
