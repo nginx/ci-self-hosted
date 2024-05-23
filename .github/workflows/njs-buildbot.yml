@@ -159,7 +159,7 @@ jobs:
                 export DEB_CFLAGS_MAINT_APPEND=$(echo $ENV_JSON | jq -r '."${{ matrix.os }}".DEB_CFLAGS_MAINT_APPEND')
                 export DEB_LDFLAGS_MAINT_APPEND=$(echo $ENV_JSON | jq -r '."${{ matrix.os }}".DEB_LDFLAGS_MAINT_APPEND')
                 CC_OPT=$(echo $ENV_JSON | jq -r '."${{ matrix.os }}".CC_OPT')
-                case "${{ matrix.os }}" in
+                case "${{ matrix.arch }}" in
                   x86)
                     CC_OPT_ADD="-m32"
                     LD_OPT_ADD="-m32"
