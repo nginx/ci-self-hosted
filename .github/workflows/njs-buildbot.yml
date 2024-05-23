@@ -332,7 +332,7 @@ jobs:
 
       - name: Build pcre2
         run: |
-          apt-get update && apt-get source pcre2
+          sudo apt-get update && apt-get source pcre2
           cd pcre2-10.*
           autoreconf -f -i
           ./configure --prefix=${{ github.workspace }}/pcre2/
@@ -357,7 +357,7 @@ jobs:
 
       - name: Build pcre
         run: |
-          apt-get update && apt-get source pcre3
+          sudo apt-get update && apt-get source pcre3
           cd pcre3-8.*
           autoreconf -f -i
           ./configure --disable-cpp --enable-utf8 --prefix=${{ github.workspace }}/pcre/
