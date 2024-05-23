@@ -337,6 +337,7 @@ jobs:
 
       - name: Build pcre2
         run: |
+          sudo apt-get remove --yes libpcre3-dev libpcre2-dev
           sudo sed -E -i 's,^# deb-src(.*),deb-src \1,' /etc/apt/sources.list
           sudo apt-get update && apt-get source pcre2
           cd pcre2-10.*
