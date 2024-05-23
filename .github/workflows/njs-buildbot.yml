@@ -349,12 +349,11 @@ jobs:
 
       - name: Configure and make njs (pcre2)
         run: |
+          PATH="$(pwd)/pcre2/bin/:$PATH" \
           ./configure \
             --no-openssl
           || cat build/autoconf.err
           make -j$(nproc)
-        env:
-          PATH: "${{ github.workspace }}/pcre2/bin/:$PATH"
 
       - name: Test njs
         run: |
@@ -375,13 +374,12 @@ jobs:
 
       - name: Configure and make njs (pcre)
         run: |
+          PATH="$(pwd)/pcre/bin/:$PATH" \
           ./configure \
             --no-openssl
             --no-pcre2 \
           || cat build/autoconf.err
           make -j$(nproc)
-        env:
-          PATH: "${{ github.workspace }}/pcre/bin/:$PATH"
 
       - name: Test njs
         run: |
