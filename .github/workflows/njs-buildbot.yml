@@ -345,7 +345,7 @@ jobs:
           ./configure --prefix=${{ github.workspace }}/pcre2/ || cat config.log
           make -j$(nproc) all
           make install
-          sed -i 's#\$libS\$libR \(-lpcre2-8$\)#$libS$libR -L${{ github.workspace }} -Wl,-Bstatic \1 -Wl,-Bdynamic#' ${{ github.workspace }}/pcre2/bin/pcre2-config
+          sed -i 's#\$libS\$libR \(-lpcre2-8$\)#$libS$libR -L${{ github.workspace }}/pcre2/lib -Wl,-Bstatic \1 -Wl,-Bdynamic#' ${{ github.workspace }}/pcre2/bin/pcre2-config
         env:
           LDFLAGS: "-fsanitize=memory"
 
