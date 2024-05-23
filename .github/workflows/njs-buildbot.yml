@@ -332,6 +332,7 @@ jobs:
 
       - name: Build pcre2
         run: |
+          sudo sed -E -i 's,^# deb-src(.*),deb-src \1,' /etc/apt/sources.list
           sudo apt-get update && apt-get source pcre2
           cd pcre2-10.*
           autoreconf -f -i
@@ -357,7 +358,7 @@ jobs:
 
       - name: Build pcre
         run: |
-          sudo apt-get update && apt-get source pcre3
+          apt-get source pcre3
           cd pcre3-8.*
           autoreconf -f -i
           ./configure --disable-cpp --enable-utf8 --prefix=${{ github.workspace }}/pcre/
