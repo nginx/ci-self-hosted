@@ -387,3 +387,23 @@ jobs:
         run: |
           make unit_test
           make clean
+
+  print:
+    runs-on: [ debian-12-amd64 ]
+    needs: check-if-allowed
+
+    steps:
+      - name: checkout v4
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+
+      - name: Checkout and build clang-ast
+        run: |
+          git clone https://github.com/nginx/clang-ast -b njs
+          cd clang-ast
+          make CONFIG=llvm-config-14
+
+      - name: Configure and make njs
+        run: |
+          CC=clang-14 ./configure \
+          || cat build/autoconf.err
+          make NJS_CFLAGS='-Xclang -load -Xclang ../clang-ast/ngx-ast.so -Xclang -plugin -Xclang ngx-ast' NJS_STATIC_LINK=: NJS_CC=clang-14 build/libnjs.a
