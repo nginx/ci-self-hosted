@@ -43,6 +43,13 @@ jobs:
             arch: arm64
           - os: freebsd-14 # we don't have arm64 builder for freebsd-14 yet
             arch: arm64
+        include:
+          - os: debian-11
+            arch: amd64
+            variant: x86
+          - os: debian-12
+            arch: amd64
+            variant: x86
       fail-fast: false
 
     steps:
@@ -156,6 +163,11 @@ jobs:
                 export DEB_CFLAGS_MAINT_APPEND=$(echo $ENV_JSON | jq -r '."${{ matrix.os }}".DEB_CFLAGS_MAINT_APPEND')
                 export DEB_LDFLAGS_MAINT_APPEND=$(echo $ENV_JSON | jq -r '."${{ matrix.os }}".DEB_LDFLAGS_MAINT_APPEND')
                 CC_OPT=$(echo $ENV_JSON | jq -r '."${{ matrix.os }}".CC_OPT')
+                case "${{ matrix.variant }}" in
+                  x86)
+                    CC_OPT="$CC_OPT -m32"
+                  ;;
+                esac
                 echo CC_OPT=$($CC_OPT) >> $GITHUB_ENV
                 LD_OPT=$(echo $ENV_JSON | jq -r '."${{ matrix.os }}".LD_OPT')
                 echo LD_OPT=$($LD_OPT) >> $GITHUB_ENV
@@ -190,7 +202,12 @@ jobs:
         run: |
           git clone https://github.com/bellard/quickjs
           cd quickjs && curl -OL http://pp.nginx.com/pluknet/quickjs.patch && git apply quickjs.patch
-          $MAKE_UTILITY -j$(nproc)
+          case "${{ matrix.variant }}" in
+            x86)
+              NGINX_QUICKJS_CFLAGS="-m32"
+            ;;
+          esac
+          CFLAGS=$NGINX_QUICKJS_CFLAGS $MAKE_UTILITY -j$(nproc)
 
       - name: Configure and make njs
         run: |
