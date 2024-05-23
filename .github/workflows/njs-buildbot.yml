@@ -330,6 +330,11 @@ jobs:
       - name: checkout v4
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
+      - name: Fix kernel mmap rnd bits
+        # Asan in ubuntu 22.04 is incompatible with high-entropy ASLR in much
+        # newer kernels using leading to random crashes: https://reviews.llvm.org/D148280
+        run: sudo sysctl vm.mmap_rnd_bits=28
+
       - name: Build pcre2
         run: |
           sudo sed -E -i 's,^# deb-src(.*),deb-src \1,' /etc/apt/sources.list
