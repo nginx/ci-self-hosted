@@ -359,7 +359,7 @@ jobs:
 
       - name: Test njs (pcre2)
         run: |
-          make test
+          make unit_test
           make clean
 
       - name: Build pcre
@@ -385,5 +385,5 @@ jobs:
 
       - name: Test njs (pcre)
         run: |
-          make test
+          make unit_test
           make clean
