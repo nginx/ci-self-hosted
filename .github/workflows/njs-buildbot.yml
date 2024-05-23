@@ -336,7 +336,7 @@ jobs:
           sudo apt-get update && apt-get source pcre2
           cd pcre2-10.*
           autoreconf -f -i
-          ./configure --prefix=${{ github.workspace }}/pcre2/
+          ./configure --prefix=${{ github.workspace }}/pcre2/ || cat config.log
           make -j$(nproc) all
           make install
         env:
@@ -361,7 +361,7 @@ jobs:
           apt-get source pcre3
           cd pcre3-8.*
           autoreconf -f -i
-          ./configure --disable-cpp --enable-utf8 --prefix=${{ github.workspace }}/pcre/
+          ./configure --disable-cpp --enable-utf8 --prefix=${{ github.workspace }}/pcre/ || cat config.log
           make -j$(nproc) all
           make install
           sed -i 's/\$libS\$libR \(-lpcre$\)/$libS$libR -Wl,-Bstatic \1 -Wl,-Bdynamic/' ${{ github.workspace }}/pcre/bin/pcre-config
