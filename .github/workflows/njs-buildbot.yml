@@ -175,7 +175,14 @@ jobs:
                 ;;
             esac
 
-            echo NGINX_CONFIGURE_CMD=$(echo $ENV_JSON | jq -r '.NGINX_CONFIGURE_CMD + " " + ."${{ matrix.os }}".NGINX_CONFIGURE_CMD_APPEND') >> $GITHUB_ENV
+            NGINX_CONFIGURE_CMD=$(echo $ENV_JSON | jq -r '.NGINX_CONFIGURE_CMD')
+            NGINX_CONFIGURE_CMD_APPEND=$(echo $ENV_JSON | jq -r '."${{ matrix.os }}".NGINX_CONFIGURE_CMD_APPEND')
+            case "${{ matrix.arch }}" in
+              x86)
+                NGINX_CONFIGURE_CMD_APPEND="--with-perl=/usr/bin/perl5.36-i386-linux-gnu"
+                ;;
+            esac
+            echo NGINX_CONFIGURE_CMD="$NGINX_CONFIGURE_CMD $NGINX_CONFIGURE_CMD_APPEND" >> $GITHUB_ENV
 
             case "${{ matrix.os }}" in
               freebsd-*)
