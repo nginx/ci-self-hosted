@@ -36,12 +36,14 @@ jobs:
     needs: check-if-allowed
     strategy:
       matrix:
-        os: [ alpine-3.19, amazonlinux-2, amazonlinux-2023, debian-11, debian-12, freebsd-14, rhel-7, rhel-8, rhel-9, ubuntu-20.04, ubuntu-22.04, ubuntu-23.10 ]
+        os: [ alpine-3.19, amazonlinux-2, amazonlinux-2023, debian-11, debian-12, freebsd-14, rhel-7, rhel-8, rhel-9, sles-12, ubuntu-20.04, ubuntu-22.04, ubuntu-23.10 ]
         arch: [ amd64, arm64 ]
         exclude:
           - os: rhel-7 # AWS does not provide an RHEL 7 arm64 AMI
             arch: arm64
           - os: freebsd-14 # we don't have arm64 builder for freebsd-14 yet
+            arch: arm64
+          - os: sles-12 # we don't have an arm64 for SLES 12
             arch: arm64
         include:
           - os: debian-12
@@ -51,11 +53,11 @@ jobs:
     steps:
       - name: checkout v3
         uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
-        if: ${{ matrix.os == 'amazonlinux-2' || matrix.os == 'rhel-7' }}
+        if: ${{ matrix.os == 'amazonlinux-2' || matrix.os == 'rhel-7' || matrix.os == 'sles-12' }}
 
       - name: checkout v4
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-        if: ${{ matrix.os != 'amazonlinux-2' && matrix.os != 'rhel-7' }}
+        if: ${{ matrix.os != 'amazonlinux-2' && matrix.os != 'rhel-7' && matrix.os != 'sles-12' }}
 
       - name: Set the defaults and set up environment
         run: |
@@ -113,6 +115,12 @@ jobs:
               "type": "rpm"
             },
             "rhel-9": {
+              "CC_OPT": "$(rpm --eval %{optflags}) $(pcre2-config --cflags) -fPIC",
+              "LD_OPT": "-Wl,-z,relro -Wl,-z,now",
+              "type": "rpm"
+            },
+            "sles-12": {
+              "NGINX_CONFIGURE_CMD_APPEND": "--with-http_geoip_module --with-stream_geoip_module",
               "CC_OPT": "$(rpm --eval %{optflags}) $(pcre2-config --cflags) -fPIC",
               "LD_OPT": "-Wl,-z,relro -Wl,-z,now",
               "type": "rpm"
@@ -202,7 +210,7 @@ jobs:
           git clone https://github.com/nginx/nginx-tests
 
       - name: Check out and build quickjs
-        if: ${{ matrix.os != 'rhel-7' }}
+        if: ${{ matrix.os != 'rhel-7' && matrix.os != 'sles-12' }}
         run: |
           git clone https://github.com/bellard/quickjs
           cd quickjs && curl -OL http://pp.nginx.com/pluknet/quickjs.patch && git apply quickjs.patch
@@ -222,7 +230,7 @@ jobs:
           $MAKE_UTILITY clean
 
       - name: Configure and make njs with quickjs
-        if: ${{ matrix.os != 'rhel-7' }}
+        if: ${{ matrix.os != 'rhel-7' && matrix.os != 'sles-12' }}
         run: |
           ./configure \
                     --with-quickjs \
@@ -232,7 +240,7 @@ jobs:
           $MAKE_UTILITY -j$(nproc)
 
       - name: Test njs with quickjs
-        if: ${{ matrix.os != 'rhel-7' }}
+        if: ${{ matrix.os != 'rhel-7' && matrix.os != 'sles-12' }}
         run: |
           $MAKE_UTILITY test
           $MAKE_UTILITY clean
