@@ -176,7 +176,7 @@ jobs:
             esac
 
             NGINX_CONFIGURE_CMD=$(echo $ENV_JSON | jq -r '.NGINX_CONFIGURE_CMD')
-            NGINX_CONFIGURE_CMD_APPEND=$(echo $ENV_JSON | jq -r '."${{ matrix.os }}".NGINX_CONFIGURE_CMD_APPEND')
+            NGINX_CONFIGURE_CMD_APPEND=$(echo $ENV_JSON | jq -r '."${{ matrix.os }}".NGINX_CONFIGURE_CMD_APPEND // empty')
             case "${{ matrix.arch }}" in
               x86)
                 NGINX_CONFIGURE_CMD_APPEND="--with-perl=/usr/bin/perl5.36-i386-linux-gnu"
