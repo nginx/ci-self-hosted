@@ -16,6 +16,7 @@ on:
 
 jobs:
   yaml-syntax-check:
+    if: ${{ ( github.repository_owner == 'nginx' || github.repository_owner == 'nginxinc' ) }}
     runs-on: ubuntu-24.04
 
     steps:
