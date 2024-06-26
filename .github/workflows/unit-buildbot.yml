@@ -61,10 +61,10 @@ jobs:
             ENV_JSON=$(cat <<EOF
             {
             "alpine-3.19": {
-              "UNIT_CONFIGURE_CMD_APPEND": "--no-pcre2",
+              "UNIT_CONFIGURE_CMD_APPEND": "--no-pcre2"
             },
             "freebsd-14": {
-              "UNIT_CONFIGURE_CMD_APPEND": "--cc-opt=-Wno-compound-token-split-by-macro",
+              "UNIT_CONFIGURE_CMD_APPEND": "--cc-opt=-Wno-compound-token-split-by-macro"
             },
             "UNIT_CONFIGURE_CMD": "./configure --tests --openssl --njs --cc-opt=\"-I njs/src -I njs/build\" --ld-opt=\"-L njs/build\""
             }
