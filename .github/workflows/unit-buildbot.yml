@@ -70,16 +70,24 @@ jobs:
               "UNIT_CONFIGURE_CMD_APPEND": "--no-pcre2"
             },
             "freebsd-14": {
-              "UNIT_CONFIGURE_CMD_APPEND": "--cc-opt=-Wno-compound-token-split-by-macro"
+              "CC_OPT_APPEND": "-Wno-compound-token-split-by-macro"
             },
-            "UNIT_CONFIGURE_CMD": "./configure --tests --openssl --njs '--cc-opt=-I njs/src -I njs/build' '--ld-opt=-L njs/build'"
+            "UNIT_CONFIGURE_CMD": "./configure --tests --openssl --njs"
+            "CC_OPT": "-Injs/src -Injs/build",
+            "LD_OPT": "-Lnjs/build"
             }
             EOF
             )
 
             UNIT_CONFIGURE_CMD=$(echo $ENV_JSON | jq -r '.UNIT_CONFIGURE_CMD')
+            CC_OPT=$(echo $ENV_JSON | jq -r '.UNIT_CONFIGURE_CMD')
+            LD_OPT=$(echo $ENV_JSON | jq -r '.UNIT_CONFIGURE_CMD')
+            CC_OPT_APPEND=$(echo $ENV_JSON | jq -r '."${{ matrix.os }}".CC_OPT_APPEND // empty')
             UNIT_CONFIGURE_CMD_APPEND=$(echo $ENV_JSON | jq -r '."${{ matrix.os }}".UNIT_CONFIGURE_CMD_APPEND // empty')
+
             echo UNIT_CONFIGURE_CMD="$UNIT_CONFIGURE_CMD $UNIT_CONFIGURE_CMD_APPEND" >> $GITHUB_ENV
+            echo CC_OPT="$CC_OPT $CC_OPT_APPEND" >> $GITHUB_ENV
+            echo LD_OPT="$LD_OPT" >> $GITHUB_ENV
 
             case "${{ matrix.os }}" in
               freebsd-*)
@@ -105,92 +113,54 @@ jobs:
 
       - name: Configure and build Unit with njs
         run: |
-          $UNIT_CONFIGURE_CMD
+          $UNIT_CONFIGURE_CMD \
+                    --cc-opt="$CC_OPT" \
+                    --ld-opt="$LD_OPT"
           $MAKE_UTILITY -j$(nproc) -k || $MAKE_UTILITY
           $MAKE_UTILITY clean
 
       - name: Configure Unit with njs with debug
         run: |
           $UNIT_CONFIGURE_CMD \
+                    --cc-opt="$CC_OPT" \
+                    --ld-opt="$LD_OPT" \
                     --debug
 
       - name: Configure and build perl
         run: |
           ./configure perl
           $MAKE_UTILITY -j$(nproc) -k perl
-          $MAKE_UTILITY clean
-
-      - name: Configure Unit with njs with debug
-        run: |
-          $UNIT_CONFIGURE_CMD \
-                    --debug
 
       - name: Configure and build php
         run: |
           ./configure php
           $MAKE_UTILITY -j$(nproc) -k php
-          $MAKE_UTILITY clean
-
-      - name: Configure Unit with njs with debug
-        run: |
-          $UNIT_CONFIGURE_CMD \
-                    --debug
 
       - name: Configure and build python
         run: |
           ./configure python
           $MAKE_UTILITY -j$(nproc) -k python
-          $MAKE_UTILITY clean
-
-      - name: Configure Unit with njs with debug
-        run: |
-          $UNIT_CONFIGURE_CMD \
-                    --debug
 
       - name: Configure and build go
         run: |
           ./configure go
           $MAKE_UTILITY -j$(nproc) -k go
           $MAKE_UTILITY go install
-          $MAKE_UTILITY clean
-
-      - name: Configure Unit with njs with debug
-        run: |
-          $UNIT_CONFIGURE_CMD \
-                    --debug
 
       - name: Configure and build ruby
         run: |
           ./configure ruby
           $MAKE_UTILITY -j$(nproc) -k ruby
-          $MAKE_UTILITY clean
-
-      - name: Configure Unit with njs with debug
-        run: |
-          $UNIT_CONFIGURE_CMD \
-                    --debug
 
       - name: Configure and build nodejs
         run: |
           ./configure nodejs
           $MAKE_UTILITY -j$(nproc) -k nodejs
-          $MAKE_UTILITY clean
-
-      - name: Configure Unit with njs with debug
-        run: |
-          $UNIT_CONFIGURE_CMD \
-                    --debug
 
       - name: Configure and build java
         run: |
           ./configure ruby
           $MAKE_UTILITY -j$(nproc) -k java
-          $MAKE_UTILITY clean
-
-      - name: Configure Unit with njs with debug
-        run: |
-          $UNIT_CONFIGURE_CMD \
-                    --debug
 
       - name: Configure and build wasmtime
         run: |
@@ -201,21 +171,9 @@ jobs:
           $MAKE_UTILITY -j$(nproc) -k wasm
           $MAKE_UTILITY clean
 
-      - name: Configure Unit with njs with debug and with all modules
+      - name: Build and run tests
         run: |
-          $UNIT_CONFIGURE_CMD \
-                    --debug
-          ./configure php
-          ./configure python
-          ./configure go
-          ./configure ruby
-          ./configure nodejs
-          ./configure ruby
-          $MAKE_UTILITY -j$(nproc) -k all
           $MAKE_UTILITY -j$(nproc) tests
-
-      - name: Run tests
-        run: |
           ./build/tests
           ulimit -c unlimited
           python3 -m pytest test
