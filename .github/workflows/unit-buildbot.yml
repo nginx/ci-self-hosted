@@ -224,7 +224,7 @@ jobs:
 
       - name: Checkout and build clang-ast
         run: |
-          git clone https://github.com/nginx/clang-ast -b unit
+          git clone https://github.com/thresheek/clang-ast -b unit
           cd clang-ast
           make CONFIG=llvm-config-14
 
