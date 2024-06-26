@@ -80,8 +80,8 @@ jobs:
             )
 
             UNIT_CONFIGURE_CMD=$(echo $ENV_JSON | jq -r '.UNIT_CONFIGURE_CMD')
-            CC_OPT=$(echo $ENV_JSON | jq -r '.UNIT_CONFIGURE_CMD')
-            LD_OPT=$(echo $ENV_JSON | jq -r '.UNIT_CONFIGURE_CMD')
+            CC_OPT=$(echo $ENV_JSON | jq -r '.CC_OPT')
+            LD_OPT=$(echo $ENV_JSON | jq -r '.LD_OPT')
             CC_OPT_APPEND=$(echo $ENV_JSON | jq -r '."${{ matrix.os }}".CC_OPT_APPEND // empty')
             UNIT_CONFIGURE_CMD_APPEND=$(echo $ENV_JSON | jq -r '."${{ matrix.os }}".UNIT_CONFIGURE_CMD_APPEND // empty')
 
