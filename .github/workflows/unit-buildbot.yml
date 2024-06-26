@@ -233,5 +233,5 @@ jobs:
       - name: Configure and build Unit
         run: |
           CC=clang-14 ./configure --tests --openssl --debug || cat build/autoconf.err
-          make CFLAGS='-Xclang -load -Xclang clang-ast/ngx-ast.so -Xclang -plugin -Xclang ngx-ast' NXT_SHARED_LOCAL_LINK=: CC=clang-14 build/lib/libnxt.so
+          make CFLAGS='-Xclang -load -Xclang clang-ast/ngx-ast.so -Xclang -plugin -Xclang ngx-ast' NXT_SHARED_LOCAL_LINK=: CC=clang-14 build/lib/libnxt.so V=1
           make clean
