@@ -95,7 +95,7 @@ jobs:
           cd njs
           ./configure \
                     --no-libxml2 \
-                    --no-zlib
+                    --no-zlib \
           || cat build/autoconf.err
           $MAKE_UTILITY -j $(nproc)
 
