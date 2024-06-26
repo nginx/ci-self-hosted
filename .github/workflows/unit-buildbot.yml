@@ -1,0 +1,235 @@
+name: Unit BuildBot
+
+on:
+  workflow_call:
+
+jobs:
+  check-if-allowed:
+    if: ${{ ( github.repository_owner == 'nginx' || github.repository_owner == 'nginxinc' ) }}
+    runs-on: [ ubuntu-latest ]
+    steps:
+      - name: Check if we're in the allowed environment
+        run: |
+          org_found=0
+          event_found=0
+          ref_found=0
+          ALLOWED_ORGS="nginx nginxinc"
+          ALLOWED_EVENTS="push"
+          ALLOWED_REFS="refs/heads/main refs/heads/master"
+          for org in $ALLOWED_ORGS; do
+            if [ "$org" == "$GITHUB_REPOSITORY_OWNER" ]; then org_found=1; fi
+          done
+          for event in $ALLOWED_EVENTS; do
+            if [ "$event" == "$GITHUB_EVENT_NAME" ]; then event_found=1; fi
+          done
+          for ref in $ALLOWED_REFS; do
+            if [ "$ref" == "$GITHUB_REF" ]; then ref_found=1; fi
+          done
+          if [ $org_found$event_found$ref_found -ne 111 ]; then
+            echo "Repository owner, event, or ref are not explicitely allowed to use this workflow: $GITHUB_REPOSITORY_OWNER, $GITHUB_EVENT_NAME, $GITHUB_REF"
+            exit 1
+          fi
+          exit 0
+
+  build:
+    runs-on: [ "${{ matrix.os }}-${{ matrix.arch }}" ]
+    needs: check-if-allowed
+    strategy:
+      matrix:
+        os: [ alpine-3.19, amazonlinux-2, amazonlinux-2023, debian-11, debian-12, fedora-39, freebsd-14, rhel-8, rhel-9, ubuntu-20.04, ubuntu-22.04, ubuntu-23.10 ]
+        arch: [ amd64, arm64 ]
+        exclude:
+          - os: rhel-7 # AWS does not provide an RHEL 7 arm64 AMI
+            arch: arm64
+          - os: freebsd-14 # we don't have arm64 builder for freebsd-14 yet
+            arch: arm64
+      fail-fast: false
+
+    steps:
+      - name: checkout v3
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+        if: ${{ matrix.os == 'amazonlinux-2' }}
+
+      - name: checkout v4
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        if: ${{ matrix.os != 'amazonlinux-2' }}
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      - name: Set the defaults and set up environment
+        run: |
+            ENV_JSON=$(cat <<EOF
+            {
+            "alpine-3.19": {
+              "UNIT_CONFIGURE_CMD_APPEND": "--no-pcre2",
+            },
+            "freebsd-14": {
+              "UNIT_CONFIGURE_CMD_APPEND": "--cc-opt=-Wno-compound-token-split-by-macro",
+            },
+            "UNIT_CONFIGURE_CMD": "./configure --tests --openssl --njs --cc-opt=\"-I njs/src -I njs/build\" --ld-opt=\"-L njs/build\""
+            }
+            EOF
+            )
+
+            UNIT_CONFIGURE_CMD=$(echo $ENV_JSON | jq -r '.UNIT_CONFIGURE_CMD')
+            UNIT_CONFIGURE_CMD_APPEND=$(echo $ENV_JSON | jq -r '."${{ matrix.os }}".UNIT_CONFIGURE_CMD_APPEND // empty')
+            echo UNIT_CONFIGURE_CMD="$UNIT_CONFIGURE_CMD $UNIT_CONFIGURE_CMD_APPEND" >> $GITHUB_ENV
+
+            case "${{ matrix.os }}" in
+              freebsd-*)
+                echo MAKE_UTILITY=gmake >> $GITHUB_ENV
+                ;;
+              *)
+                echo MAKE_UTILITY=make >> $GITHUB_ENV
+                ;;
+            esac
+
+      - name: Check out njs
+        run: |
+          git clone https://github.com/nginx/njs -b tags/$(sed "s/NJS_VERSION := \(.*\)/\1/" pkg/contrib/src/njs/version)
+
+      - name: Configure and make njs
+        run: |
+          cd njs
+          ./configure \
+                    --no-libxml2 \
+                    --no-zlib
+          || cat build/autoconf.err
+          $MAKE_UTILITY -j $(nproc)
+
+      - name: Configure and build Unit with njs
+        run: |
+          $UNIT_CONFIGURE_CMD
+          $MAKE_UTILITY -j$(nproc) -k || $MAKE_UTILITY
+          $MAKE_UTILITY clean
+
+      - name: Configure Unit with njs with debug
+        run: |
+          $UNIT_CONFIGURE_CMD \
+                    --debug
+
+      - name: Configure and build perl
+        run: |
+          ./configure perl
+          $MAKE_UTILITY -j$(nproc) -k perl
+          $MAKE_UTILITY clean
+
+      - name: Configure Unit with njs with debug
+        run: |
+          $UNIT_CONFIGURE_CMD \
+                    --debug
+
+      - name: Configure and build php
+        run: |
+          ./configure php
+          $MAKE_UTILITY -j$(nproc) -k php
+          $MAKE_UTILITY clean
+
+      - name: Configure Unit with njs with debug
+        run: |
+          $UNIT_CONFIGURE_CMD \
+                    --debug
+
+      - name: Configure and build python
+        run: |
+          ./configure python
+          $MAKE_UTILITY -j$(nproc) -k python
+          $MAKE_UTILITY clean
+
+      - name: Configure Unit with njs with debug
+        run: |
+          $UNIT_CONFIGURE_CMD \
+                    --debug
+
+      - name: Configure and build go
+        run: |
+          ./configure go
+          $MAKE_UTILITY -j$(nproc) -k go
+          $MAKE_UTILITY go install
+          $MAKE_UTILITY clean
+
+      - name: Configure Unit with njs with debug
+        run: |
+          $UNIT_CONFIGURE_CMD \
+                    --debug
+
+      - name: Configure and build ruby
+        run: |
+          ./configure ruby
+          $MAKE_UTILITY -j$(nproc) -k ruby
+          $MAKE_UTILITY clean
+
+      - name: Configure Unit with njs with debug
+        run: |
+          $UNIT_CONFIGURE_CMD \
+                    --debug
+
+      - name: Configure and build nodejs
+        run: |
+          ./configure nodejs
+          $MAKE_UTILITY -j$(nproc) -k nodejs
+          $MAKE_UTILITY clean
+
+      - name: Configure Unit with njs with debug
+        run: |
+          $UNIT_CONFIGURE_CMD \
+                    --debug
+
+      - name: Configure and build java
+        run: |
+          ./configure ruby
+          $MAKE_UTILITY -j$(nproc) -k java
+          $MAKE_UTILITY clean
+
+      - name: Configure Unit with njs with debug
+        run: |
+          $UNIT_CONFIGURE_CMD \
+                    --debug
+
+      - name: Configure and build wasmtime
+        run: |
+          make -C pkg/contrib .wasmtime
+          ./configure wasm \
+                    --include-path=pkg/contrib/wasmtime/crates/c-api/include \
+                    --lib-path=pkg/contrib/wasmtime/target/release
+          $MAKE_UTILITY -j$(nproc) -k wasm
+          $MAKE_UTILITY clean
+
+      - name: Configure Unit with njs with debug and with all modules
+        run: |
+          $UNIT_CONFIGURE_CMD \
+                    --debug
+          ./configure php
+          ./configure python
+          ./configure go
+          ./configure ruby
+          ./configure nodejs
+          ./configure ruby
+          $MAKE_UTILITY -j$(nproc) -k all
+          $MAKE_UTILITY -j$(nproc) tests
+
+      - name: Run tests
+        run: |
+          ./build/tests
+          ulimit -c unlimited
+          python3 -m pytest test
+
+  print:
+    runs-on: [ debian-12-amd64 ]
+    needs: check-if-allowed
+
+    steps:
+      - name: checkout v4
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+
+      - name: Checkout and build clang-ast
+        run: |
+          git clone https://github.com/nginx/clang-ast -b unit
+          cd clang-ast
+          make CONFIG=llvm-config-14
+
+      - name: Configure and build Unit
+        run: |
+          CC=clang-14 ./configure --tests --openssl --debug || cat build/autoconf.err
+          make CFLAGS='-Xclang -load -Xclang clang-ast/ngx-ast.so -Xclang -plugin -Xclang ngx-ast' NXT_SHARED_LOCAL_LINK=: CC=clang-14 build/lib/libnxt.so
+          make clean
