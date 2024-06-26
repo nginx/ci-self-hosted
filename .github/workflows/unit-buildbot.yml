@@ -88,7 +88,7 @@ jobs:
 
       - name: Check out njs
         run: |
-          git clone https://github.com/nginx/njs -b tags/$(sed "s/NJS_VERSION := \(.*\)/\1/" pkg/contrib/src/njs/version)
+          git clone https://github.com/nginx/njs -b $(sed "s/NJS_VERSION := \(.*\)/\1/" pkg/contrib/src/njs/version)
 
       - name: Configure and make njs
         run: |
