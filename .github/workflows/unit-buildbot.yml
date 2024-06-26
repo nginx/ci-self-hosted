@@ -39,9 +39,11 @@ jobs:
         os: [ alpine-3.19, amazonlinux-2, amazonlinux-2023, debian-11, debian-12, fedora-39, freebsd-14, rhel-8, rhel-9, ubuntu-20.04, ubuntu-22.04, ubuntu-23.10 ]
         arch: [ amd64, arm64 ]
         exclude:
-          - os: rhel-7 # AWS does not provide an RHEL 7 arm64 AMI
+          - os: fedora-39 # we don't provide Fedora arm64 runners
             arch: arm64
           - os: freebsd-14 # we don't have arm64 builder for freebsd-14 yet
+            arch: arm64
+          - os: rhel-7 # AWS does not provide an RHEL 7 arm64 AMI
             arch: arm64
       fail-fast: false
 
