@@ -185,7 +185,7 @@ jobs:
           $MAKE_UTILITY -j$(nproc) -k php
 
       - name: Configure and build python 2
-        if: ${{ ! startsWith( matrix.os, 'alpine-') && ! startsWith( matrix.os, 'ubuntu-') && ! startsWith( matrix.os == 'debian-' ) && ! startsWith ( matrix.os, 'amazonlinux-2023' ) && ! startsWith ( matrix.os, 'rhel-9' ) }}
+        if: ${{ ! startsWith( matrix.os, 'alpine-') && ! startsWith( matrix.os, 'ubuntu-') && ! startsWith( matrix.os, 'debian-' ) && ! startsWith ( matrix.os, 'amazonlinux-2023' ) && ! startsWith ( matrix.os, 'rhel-9' ) }}
         run: |
           ./configure python --config=python2-config \
           || cat build/autoconf.err
