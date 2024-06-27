@@ -178,14 +178,14 @@ jobs:
           $MAKE_UTILITY -j$(nproc) -k perl
 
       - name: Configure and build php
-        if: ${{ ! startsWith( matrix.os, 'alpine-') }}
+        if: ${{ ! startsWith( matrix.os, 'alpine-') && ! startsWith( matrix.os, 'freebsd-') }}
         run: |
           ./configure php \
           || cat build/autoconf.err
           $MAKE_UTILITY -j$(nproc) -k php
 
       - name: Configure and build python 2
-        if: ${{ ! startsWith( matrix.os, 'alpine-') && ! startsWith( matrix.os, 'ubuntu-') && ! startsWith( matrix.os, 'debian-' ) && ! startsWith ( matrix.os, 'amazonlinux-2023' ) && ! startsWith ( matrix.os, 'rhel-9' ) }}
+        if: ${{ ! startsWith( matrix.os, 'alpine-') && ! startsWith( matrix.os, 'ubuntu-') && ! startsWith( matrix.os, 'debian-') && ! startsWith( matrix.os, 'amazonlinux-2023') && ! startsWith( matrix.os, 'rhel-9') }}
         run: |
           ./configure python --config=python2-config \
           || cat build/autoconf.err
@@ -205,12 +205,14 @@ jobs:
           $MAKE_UTILITY go-install
 
       - name: Configure and build ruby
+        if: ${{ ! startsWith( matrix.os, 'amazonlinux-') && ! startsWith( matrix.os, 'rhel-') }}
         run: |
           ./configure ruby \
           || cat build/autoconf.err
           $MAKE_UTILITY -j$(nproc) -k ruby
 
       - name: Configure and build nodejs
+        if: ${{ ! startsWith( matrix.os, 'amazonlinux-') && ! startsWith ( matrix.os, 'rhel-') }}
         run: |
           ./configure nodejs \
           || cat build/autoconf.err
