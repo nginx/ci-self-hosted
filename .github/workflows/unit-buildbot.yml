@@ -67,7 +67,7 @@ jobs:
             ENV_JSON=$(cat <<EOF
             {
             "alpine-3.19": {
-              "UNIT_CONFIGURE_CMD_APPEND": "--no-pcre2"
+              "CONFIGURE_CMD_APPEND": "--no-pcre2"
             },
             "freebsd-14": {
               "CC_OPT_APPEND": "-Wno-compound-token-split-by-macro"
@@ -83,9 +83,10 @@ jobs:
             CC_OPT=$(echo $ENV_JSON | jq -r '.CC_OPT')
             LD_OPT=$(echo $ENV_JSON | jq -r '.LD_OPT')
             CC_OPT_APPEND=$(echo $ENV_JSON | jq -r '."${{ matrix.os }}".CC_OPT_APPEND // empty')
-            UNIT_CONFIGURE_CMD_APPEND=$(echo $ENV_JSON | jq -r '."${{ matrix.os }}".UNIT_CONFIGURE_CMD_APPEND // empty')
+            CONFIGURE_CMD_APPEND=$(echo $ENV_JSON | jq -r '."${{ matrix.os }}".CONFIGURE_CMD_APPEND // empty')
 
             echo UNIT_CONFIGURE_CMD="$UNIT_CONFIGURE_CMD $UNIT_CONFIGURE_CMD_APPEND" >> $GITHUB_ENV
+            echo CONFIGURE_CMD_APPEND="$CONFIGURE_CMD_APPEND" >> $GITHUB_ENV
             echo CC_OPT="$CC_OPT $CC_OPT_APPEND" >> $GITHUB_ENV
             echo LD_OPT="$LD_OPT" >> $GITHUB_ENV
 
@@ -149,6 +150,7 @@ jobs:
           ./configure \
                     --no-libxml2 \
                     --no-zlib \
+                    $CONFIGURE_CMD_APPEND \
           || cat build/autoconf.err
           $MAKE_UTILITY -j $(nproc)
 
