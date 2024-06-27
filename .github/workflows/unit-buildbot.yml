@@ -180,15 +180,15 @@ jobs:
           ./configure php
           $MAKE_UTILITY -j$(nproc) -k php
 
-      - name: Configure and build python2
+      - name: Configure and build python 2
         if: ${{ ! startsWith( matrix.os, 'alpine-') || ! startsWith( matrix.os, 'ubuntu-') || ! startsWith( matrix.os, 'debian-12' ) || ! startsWith ( matrix.os, 'amazonlinux-2023' ) || ! startsWith ( matrix.os, 'rhel-9' ) }}
         run: |
-          ./configure python2 --config=python2-config
+          ./configure python --config=python2-config
           $MAKE_UTILITY -j$(nproc) -k python2
 
-      - name: Configure and build python3
+      - name: Configure and build python 3
         run: |
-          ./configure python2 --config=python3-config
+          ./configure python --config=python3-config
           $MAKE_UTILITY -j$(nproc) -k python3
 
       - name: Configure and build go
