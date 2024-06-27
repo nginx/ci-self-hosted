@@ -120,6 +120,7 @@ jobs:
               MISSING_BUILD_DEPS="$(make check-build-depends-all 2>&1 | grep -vE '^$|^The following|^make:|^touch') debhelper ruby-dev"
               sudo apt-get update
               sudo apt-get install -y --no-install-suggests --no-install-recommends "$MISSING_BUILD_DEPS"
+              ;;
             freebsd)
               MISSING_BUILD_DEPS="gmake go node18 npm-node18 openjdk8 python3 ruby rubygem-rack rubygem-rake"
               sudo pkg add -y "$MISSING_BUILD_DEPS"
