@@ -216,7 +216,7 @@ jobs:
         run: |
           ./configure nodejs \
           || cat build/autoconf.err
-          $MAKE_UTILITY -j$(nproc) -k nodejs
+          $MAKE_UTILITY -j$(nproc) -k node-local-install DESTDIR=node
 
       - name: Configure and build java
         run: |
