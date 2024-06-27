@@ -104,6 +104,9 @@ jobs:
           if [ -f "/etc/os-release" ]; then
             ID=$(. /etc/os-release; echo $ID)
           fi
+          if [ -x "/sbin/apk" ]; then
+            ID=alpine
+          fi
           case "$ID" in
             alpine)
               MISSING_BUILD_DEPS="alpine-sdk go linux-headers musl-dev nodejs nodejs-dev npm openjdk11-jdk openssl-dev pcre-dev perl-dev python3-dev ruby-dev ruby-rake"
@@ -127,6 +130,11 @@ jobs:
               ;;
             *)
               echo "Don't know what to do with $ID"
+              ls -ld /etc/*release
+              for f in /etc/*release; do
+                echo "contents of $f"
+                cat $f;
+              done
               exit 1
               ;;
             esac
