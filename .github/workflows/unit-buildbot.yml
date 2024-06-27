@@ -85,7 +85,7 @@ jobs:
             CC_OPT_APPEND=$(echo $ENV_JSON | jq -r '."${{ matrix.os }}".CC_OPT_APPEND // empty')
             CONFIGURE_CMD_APPEND=$(echo $ENV_JSON | jq -r '."${{ matrix.os }}".CONFIGURE_CMD_APPEND // empty')
 
-            echo UNIT_CONFIGURE_CMD="$UNIT_CONFIGURE_CMD $UNIT_CONFIGURE_CMD_APPEND" >> $GITHUB_ENV
+            echo UNIT_CONFIGURE_CMD="$UNIT_CONFIGURE_CMD $CONFIGURE_CMD_APPEND" >> $GITHUB_ENV
             echo CONFIGURE_CMD_APPEND="$CONFIGURE_CMD_APPEND" >> $GITHUB_ENV
             echo CC_OPT="$CC_OPT $CC_OPT_APPEND" >> $GITHUB_ENV
             echo LD_OPT="$LD_OPT" >> $GITHUB_ENV
