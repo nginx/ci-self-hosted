@@ -110,7 +110,7 @@ jobs:
         run : |
           case "$ID" in
             alpine)
-              MISSING_BUILD_DEPS="alpine-sdk go linux-headers musl-dev nodejs nodejs-dev npm openjdk11-jdk openssl-dev pcre-dev perl-dev py3-pytest python3-dev ruby-dev ruby-rake"
+              MISSING_BUILD_DEPS="alpine-sdk go linux-headers musl-dev nodejs nodejs-dev npm openjdk11-jdk openssl-dev pcre-dev perl-dev py3-pytest python3-dev procps ruby-dev ruby-rake"
               sudo apk add $MISSING_BUILD_DEPS
               ;;
             amzn|centos|fedora|rhel)
@@ -234,6 +234,12 @@ jobs:
           || cat build/autoconf.err
           $MAKE_UTILITY -j$(nproc) -k wasm
           rm -f build/lib/unit/modules/wasm.unit.so
+
+      - name: Install newer pytest
+        if: ${{ matrix.os == 'amazonlinux-2' || matrix.os == 'rhel-8' }}
+        run: |
+            printf "%s\n%s\n%s\n%s\n" "pytest>=6.0.1" "pyhamcrest" "cryptography==3.4.8" "pyOpenSSL==19.1.0" > /tmp/unit-requirements.txt
+            python3 -m pip install -r /tmp/unit-requirements.txt
 
       - name: Build and run tests
         run: |
