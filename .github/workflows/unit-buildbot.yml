@@ -212,7 +212,7 @@ jobs:
           $MAKE_UTILITY -j$(nproc) -k ruby
 
       - name: Configure and build nodejs
-        if: ${{ ! startsWith( matrix.os, 'amazonlinux-') && ! startsWith ( matrix.os, 'rhel-') }}
+        if: ${{ startsWith( matrix.os, 'alpine-') || startsWith ( matrix.os, 'freebsd-') }}
         run: |
           ./configure nodejs \
           || cat build/autoconf.err
