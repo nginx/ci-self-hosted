@@ -232,7 +232,6 @@ jobs:
                     --lib-path=pkg/contrib/wasmtime/target/release \
           || cat build/autoconf.err
           $MAKE_UTILITY -j$(nproc) -k wasm
-          $MAKE_UTILITY clean
 
       - name: Build and run tests
         run: |
