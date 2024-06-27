@@ -170,6 +170,7 @@ jobs:
                     --ld-opt="$LD_OPT" \
                     --debug \
           || cat build/autoconf.err
+          $MAKE_UTILITY -j$(nproc) -k || $MAKE_UTILITY
 
       - name: Configure and build perl
         run: |
