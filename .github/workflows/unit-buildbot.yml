@@ -156,7 +156,8 @@ jobs:
         run: |
           $UNIT_CONFIGURE_CMD \
                     --cc-opt="$CC_OPT" \
-                    --ld-opt="$LD_OPT"
+                    --ld-opt="$LD_OPT" \
+          || cat build/autoconf.err
           $MAKE_UTILITY -j$(nproc) -k || $MAKE_UTILITY
           $MAKE_UTILITY clean
 
@@ -165,7 +166,8 @@ jobs:
           $UNIT_CONFIGURE_CMD \
                     --cc-opt="$CC_OPT" \
                     --ld-opt="$LD_OPT" \
-                    --debug
+                    --debug \
+          || cat build/autoconf.err
 
       - name: Configure and build perl
         run: |
