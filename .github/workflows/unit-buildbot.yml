@@ -240,7 +240,7 @@ jobs:
         if: ${{ matrix.os == 'amazonlinux-2' || matrix.os == 'rhel-8' }}
         run: |
             printf "%s\n%s\n%s\n%s\n" "pytest>=6.0.1" "pyhamcrest" "cryptography==3.4.8" "pyOpenSSL==19.1.0" > /tmp/unit-requirements.txt
-            python3 -m pip install --upgrade pip
+            sudo python3 -m pip install --upgrade pip
             python3 -m pip install -r /tmp/unit-requirements.txt
 
       - name: Build and run tests
