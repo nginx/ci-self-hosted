@@ -121,7 +121,7 @@ jobs:
               ;;
             debian|ubuntu)
               cd pkg/deb
-              MISSING_BUILD_DEPS="$(make check-build-depends-all 2>&1 | grep -vE '^$|^The following|^make:|^touch') debhelper ruby-dev"
+              MISSING_BUILD_DEPS="$(make check-build-depends-all 2>&1 | grep -vE '^$|^The following|^make:|^touch') debhelper ruby-dev python3-dev"
               sudo apt-get update
               sudo apt-get install -y --no-install-suggests --no-install-recommends $MISSING_BUILD_DEPS
               ;;
