@@ -110,23 +110,23 @@ jobs:
         run : |
           case "$ID" in
             alpine)
-              MISSING_BUILD_DEPS="alpine-sdk go linux-headers musl-dev nodejs nodejs-dev npm openjdk11-jdk openssl-dev pcre-dev perl-dev python3-dev ruby-dev ruby-rake"
+              MISSING_BUILD_DEPS="alpine-sdk go linux-headers musl-dev nodejs nodejs-dev npm openjdk11-jdk openssl-dev pcre-dev perl-dev py3-pytest python3-dev ruby-dev ruby-rake"
               sudo apk add $MISSING_BUILD_DEPS
               ;;
             amzn|centos|fedora|rhel)
               cd pkg/rpm
-              MISSING_BUILD_DEPS="$(make check-build-depends-all 2>&1 | grep -vE '^$|^The following|^make:|^touch')"
+              MISSING_BUILD_DEPS="$(make check-build-depends-all 2>&1 | grep -vE '^$|^The following|^make:|^touch') python3-pytest"
               sudo yum makecache
               sudo yum install -y $MISSING_BUILD_DEPS
               ;;
             debian|ubuntu)
               cd pkg/deb
-              MISSING_BUILD_DEPS="$(make check-build-depends-all 2>&1 | grep -vE '^$|^The following|^make:|^touch') debhelper ruby-dev python3-dev"
+              MISSING_BUILD_DEPS="$(make check-build-depends-all 2>&1 | grep -vE '^$|^The following|^make:|^touch') debhelper ruby-dev python3-pytest python3-dev"
               sudo apt-get update
               sudo apt-get install -y --no-install-suggests --no-install-recommends $MISSING_BUILD_DEPS
               ;;
             freebsd)
-              MISSING_BUILD_DEPS="gmake go node18 npm-node18 openjdk8 python3 ruby rubygem-rack rubygem-rake"
+              MISSING_BUILD_DEPS="devel/py-pytest gmake go node18 npm-node18 openjdk8 python3 ruby rubygem-rack rubygem-rake"
               sudo pkg install -y $MISSING_BUILD_DEPS
               ;;
             *)
