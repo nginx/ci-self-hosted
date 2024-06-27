@@ -189,7 +189,7 @@ jobs:
         run: |
           ./configure go
           $MAKE_UTILITY -j$(nproc) -k go
-          $MAKE_UTILITY go install
+          $MAKE_UTILITY go-install
 
       - name: Configure and build ruby
         run: |
