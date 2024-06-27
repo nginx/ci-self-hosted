@@ -121,7 +121,7 @@ jobs:
               ;;
             debian|ubuntu)
               cd pkg/deb
-              MISSING_BUILD_DEPS="$(make check-build-depends-all 2>&1 | grep -vE '^$|^The following|^make:|^touch') debhelper ruby-dev python2-dev python3-dev"
+              MISSING_BUILD_DEPS="$(make check-build-depends-all 2>&1 | grep -vE '^$|^The following|^make:|^touch') debhelper ruby-dev python3-dev"
               sudo apt-get update
               sudo apt-get install -y --no-install-suggests --no-install-recommends $MISSING_BUILD_DEPS
               ;;
@@ -185,7 +185,7 @@ jobs:
           $MAKE_UTILITY -j$(nproc) -k php
 
       - name: Configure and build python 2
-        if: ${{ ! startsWith( matrix.os, 'alpine-') && ! startsWith( matrix.os, 'ubuntu-') && ! startsWith( matrix.os, 'debian-12') && ! startsWith( matrix.os, 'amazonlinux-2023') && ! startsWith( matrix.os, 'rhel-9')  && ! startsWith( matrix.os, 'fedora-') }}
+        if: ${{ ! startsWith( matrix.os, 'alpine-') && ! startsWith( matrix.os, 'ubuntu-') && ! startsWith( matrix.os, 'debian-') && ! startsWith( matrix.os, 'amazonlinux-2023') && ! startsWith( matrix.os, 'rhel-9')  && ! startsWith( matrix.os, 'fedora-') }}
         run: |
           ./configure python --config=python2-config \
           || cat build/autoconf.err
