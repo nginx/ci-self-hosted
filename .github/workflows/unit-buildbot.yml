@@ -126,7 +126,7 @@ jobs:
               ;;
             freebsd)
               MISSING_BUILD_DEPS="gmake go node18 npm-node18 openjdk8 python3 ruby rubygem-rack rubygem-rake"
-              sudo pkg install $MISSING_BUILD_DEPS
+              sudo pkg install -y $MISSING_BUILD_DEPS
               ;;
             *)
               echo "Don't know what to do with ID: $ID"
