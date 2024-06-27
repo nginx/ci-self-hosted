@@ -200,7 +200,7 @@ jobs:
 
       - name: Configure and build unit-go
         run: |
-          ./configure go \
+          ./configure go --go-path= \
           || cat build/autoconf.err
           $MAKE_UTILITY -j$(nproc) -k go
           $MAKE_UTILITY go-install
