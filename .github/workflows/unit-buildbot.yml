@@ -126,7 +126,7 @@ jobs:
               sudo apt-get install -y --no-install-suggests --no-install-recommends $MISSING_BUILD_DEPS
               ;;
             freebsd)
-              MISSING_BUILD_DEPS="devel/py-pytest gmake go node18 npm-node18 openjdk8 python3 ruby rubygem-rack rubygem-rake"
+              MISSING_BUILD_DEPS="devel/py-pytest gmake go node20 npm-node20 openjdk8 python3 ruby rubygem-rack rubygem-rake"
               sudo pkg install -y $MISSING_BUILD_DEPS
               ;;
             *)
