@@ -226,7 +226,7 @@ jobs:
 
       - name: Configure and build wasmtime
         run: |
-          make -C pkg/contrib .wasmtime
+          $MAKE_UTILITY -C pkg/contrib .wasmtime
           ./configure wasm \
                     --include-path=pkg/contrib/wasmtime/crates/c-api/include \
                     --lib-path=pkg/contrib/wasmtime/target/release \
