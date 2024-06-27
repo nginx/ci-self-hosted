@@ -163,7 +163,7 @@ jobs:
           $MAKE_UTILITY -j$(nproc) -k || $MAKE_UTILITY
           $MAKE_UTILITY clean
 
-      - name: Configure Unit with njs with debug
+      - name: Configure and build Unit with njs with debug
         run: |
           $UNIT_CONFIGURE_CMD \
                     --cc-opt="$CC_OPT" \
@@ -172,60 +172,60 @@ jobs:
           || cat build/autoconf.err
           $MAKE_UTILITY -j$(nproc) -k || $MAKE_UTILITY
 
-      - name: Configure and build perl
+      - name: Configure and build unit-perl
         run: |
           ./configure perl \
           || cat build/autoconf.err
           $MAKE_UTILITY -j$(nproc) -k perl
 
-      - name: Configure and build php
+      - name: Configure and build unit-php
         if: ${{ ! startsWith( matrix.os, 'alpine-') && ! startsWith( matrix.os, 'freebsd-') }}
         run: |
           ./configure php \
           || cat build/autoconf.err
           $MAKE_UTILITY -j$(nproc) -k php
 
-      - name: Configure and build python 2
+      - name: Configure and build unit-python2
         if: ${{ matrix.os == 'amazonlinux-2' || matrix.os == 'rhel-8' }}
         run: |
           ./configure python --config=python2-config \
           || cat build/autoconf.err
           $MAKE_UTILITY -j$(nproc) -k python2
 
-      - name: Configure and build python 3
+      - name: Configure and build unit-python3
         run: |
           ./configure python --config=python3-config \
           || cat build/autoconf.err
           $MAKE_UTILITY -j$(nproc) -k python3
 
-      - name: Configure and build go
+      - name: Configure and build unit-go
         run: |
           ./configure go \
           || cat build/autoconf.err
           $MAKE_UTILITY -j$(nproc) -k go
           $MAKE_UTILITY go-install
 
-      - name: Configure and build ruby
+      - name: Configure and build unit-ruby
         if: ${{ ! startsWith( matrix.os, 'amazonlinux-') && ! startsWith( matrix.os, 'rhel-') }}
         run: |
           ./configure ruby \
           || cat build/autoconf.err
           $MAKE_UTILITY -j$(nproc) -k ruby
 
-      - name: Configure and build nodejs
+      - name: Configure and build unit-nodejs
         if: ${{ startsWith( matrix.os, 'alpine-') || startsWith ( matrix.os, 'freebsd-') }}
         run: |
           ./configure nodejs \
           || cat build/autoconf.err
           $MAKE_UTILITY -j$(nproc) -k node-local-install DESTDIR=node
 
-      - name: Configure and build java
+      - name: Configure and build unit-java
         run: |
           ./configure java \
           || cat build/autoconf.err
           $MAKE_UTILITY -j$(nproc) -k java
 
-      - name: Configure and build wasmtime
+      - name: Configure and build unit-wasmtime
         run: |
           $MAKE_UTILITY -C pkg/contrib .wasmtime
           ./configure wasm \
