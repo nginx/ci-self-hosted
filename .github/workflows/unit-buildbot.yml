@@ -173,45 +173,53 @@ jobs:
 
       - name: Configure and build perl
         run: |
-          ./configure perl
+          ./configure perl \
+          || cat build/autoconf.err
           $MAKE_UTILITY -j$(nproc) -k perl
 
       - name: Configure and build php
         if: ${{ ! startsWith( matrix.os, 'alpine-') }}
         run: |
-          ./configure php
+          ./configure php \
+          || cat build/autoconf.err
           $MAKE_UTILITY -j$(nproc) -k php
 
       - name: Configure and build python 2
         if: ${{ ! startsWith( matrix.os, 'alpine-') || ! startsWith( matrix.os, 'ubuntu-') || ! startsWith( matrix.os, 'debian-12' ) || ! startsWith ( matrix.os, 'amazonlinux-2023' ) || ! startsWith ( matrix.os, 'rhel-9' ) }}
         run: |
-          ./configure python --config=python2-config
+          ./configure python --config=python2-config \
+          || cat build/autoconf.err
           $MAKE_UTILITY -j$(nproc) -k python2
 
       - name: Configure and build python 3
         run: |
-          ./configure python --config=python3-config
+          ./configure python --config=python3-config \
+          || cat build/autoconf.err
           $MAKE_UTILITY -j$(nproc) -k python3
 
       - name: Configure and build go
         run: |
-          ./configure go
+          ./configure go \
+          || cat build/autoconf.err
           $MAKE_UTILITY -j$(nproc) -k go
           $MAKE_UTILITY go-install
 
       - name: Configure and build ruby
         run: |
-          ./configure ruby
+          ./configure ruby \
+          || cat build/autoconf.err
           $MAKE_UTILITY -j$(nproc) -k ruby
 
       - name: Configure and build nodejs
         run: |
-          ./configure nodejs
+          ./configure nodejs \
+          || cat build/autoconf.err
           $MAKE_UTILITY -j$(nproc) -k nodejs
 
       - name: Configure and build java
         run: |
-          ./configure ruby
+          ./configure ruby \
+          || cat build/autoconf.err
           $MAKE_UTILITY -j$(nproc) -k java
 
       - name: Configure and build wasmtime
@@ -219,7 +227,8 @@ jobs:
           make -C pkg/contrib .wasmtime
           ./configure wasm \
                     --include-path=pkg/contrib/wasmtime/crates/c-api/include \
-                    --lib-path=pkg/contrib/wasmtime/target/release
+                    --lib-path=pkg/contrib/wasmtime/target/release \
+          || cat build/autoconf.err
           $MAKE_UTILITY -j$(nproc) -k wasm
           $MAKE_UTILITY clean
 
