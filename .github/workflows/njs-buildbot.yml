@@ -32,6 +32,7 @@ jobs:
           exit 0
 
   test:
+    name: ${{ matrix.os }}, ${{ matrix.subarch != '' && matrix.subarch || matrix.arch }}
     runs-on: [ "${{ matrix.os }}-${{ matrix.arch }}" ]
     needs: check-if-allowed
     strategy:
@@ -264,6 +265,7 @@ jobs:
           TEST_NGINX_VERBOSE: 1
 
   asan:
+    name: ubuntu-22.04, amd64, asan, ${{ matrix.backend }}
     runs-on: [ ubuntu-22.04-amd64 ]
     needs: check-if-allowed
     strategy:
@@ -345,6 +347,7 @@ jobs:
           TEST_NGINX_VERBOSE: 1
 
   msan:
+    name: ubuntu-22.04, amd64, msan
     runs-on: [ ubuntu-22.04-amd64 ]
     needs: check-if-allowed
     env:
@@ -415,6 +418,7 @@ jobs:
           make clean
 
   print:
+    name: debian-12, amd64, print
     runs-on: [ debian-12-amd64 ]
     needs: check-if-allowed
 
