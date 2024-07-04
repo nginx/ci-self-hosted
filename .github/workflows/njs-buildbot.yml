@@ -38,6 +38,7 @@ jobs:
       matrix:
         os: [ alpine-3.19, amazonlinux-2, amazonlinux-2023, debian-11, debian-12, freebsd-14, rhel-7, rhel-8, rhel-9, sles-12, ubuntu-20.04, ubuntu-22.04, ubuntu-23.10 ]
         arch: [ amd64, arm64 ]
+        subarch: [ '' ]
         exclude:
           - os: rhel-7 # AWS does not provide an RHEL 7 arm64 AMI
             arch: arm64
@@ -47,7 +48,8 @@ jobs:
             arch: arm64
         include:
           - os: debian-12
-            arch: x86
+            arch: amd64
+            subarch: x86
       fail-fast: false
 
     steps:
@@ -167,7 +169,7 @@ jobs:
                 export DEB_CFLAGS_MAINT_APPEND=$(echo $ENV_JSON | jq -r '."${{ matrix.os }}".DEB_CFLAGS_MAINT_APPEND')
                 export DEB_LDFLAGS_MAINT_APPEND=$(echo $ENV_JSON | jq -r '."${{ matrix.os }}".DEB_LDFLAGS_MAINT_APPEND')
                 CC_OPT=$(echo $ENV_JSON | jq -r '."${{ matrix.os }}".CC_OPT')
-                case "${{ matrix.arch }}" in
+                case "${{ matrix.subarch }}" in
                   x86)
                     CC_OPT_ADD="-m32"
                     LD_OPT_ADD="-m32"
@@ -185,7 +187,7 @@ jobs:
 
             NGINX_CONFIGURE_CMD=$(echo $ENV_JSON | jq -r '.NGINX_CONFIGURE_CMD')
             NGINX_CONFIGURE_CMD_APPEND=$(echo $ENV_JSON | jq -r '."${{ matrix.os }}".NGINX_CONFIGURE_CMD_APPEND // empty')
-            case "${{ matrix.arch }}" in
+            case "${{ matrix.subarch }}" in
               x86)
                 NGINX_CONFIGURE_CMD_APPEND="--with-perl=/usr/bin/perl5.36-i386-linux-gnu"
                 ;;
