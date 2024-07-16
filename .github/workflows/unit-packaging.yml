@@ -68,11 +68,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ amazonlinux-2, amazonlinux-2023, fedora-38, fedora-39, rhel-7, rhel-8, rhel-9 ]
+        os: [ amazonlinux-2, amazonlinux-2023, fedora-38, fedora-39, rhel-8, rhel-9 ]
         arch: [ amd64, arm64 ]
         exclude:
-          - os: rhel-7 # AWS does not provide an RHEL 7 arm64 AMI
-            arch: arm64
           - os: fedora-38
             arch: arm64
           - os: fedora-39
@@ -81,11 +79,11 @@ jobs:
     steps:
       - name: checkout v3
         uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
-        if: ${{ matrix.os == 'amazonlinux-2' || matrix.os == 'rhel-7' }}
+        if: ${{ matrix.os == 'amazonlinux-2' }}
 
       - name: checkout v4
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-        if: ${{ matrix.os != 'amazonlinux-2' && matrix.os != 'rhel-7' }}
+        if: ${{ matrix.os != 'amazonlinux-2' }}
 
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
