@@ -71,12 +71,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ amazonlinux-2, amazonlinux-2023, fedora-38, fedora-39, rhel-8, rhel-9 ]
+        os: [ amazonlinux-2, amazonlinux-2023, fedora-39, fedora-40, rhel-8, rhel-9 ]
         arch: [ amd64, arm64 ]
         exclude:
-          - os: fedora-38
-            arch: arm64
           - os: fedora-39
+            arch: arm64
+          - os: fedora-40
             arch: arm64
 
     steps:
