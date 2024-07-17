@@ -159,7 +159,7 @@ jobs:
         run: |
             git clone https://github.com/nginx/njs
 
-      - name: Check out njs
+      - name: Check out njs from contrib
         if: ${{ matrix.njs == 'contrib' }}
         run: |
           git clone https://github.com/nginx/njs -b $(sed "s/NJS_VERSION := \(.*\)/\1/" pkg/contrib/src/njs/version)
@@ -175,7 +175,7 @@ jobs:
           || cat build/autoconf.err
           $MAKE_UTILITY -j $(nproc)
 
-      - name: Configure and build Unit with njs
+      - name: Configure and build Unit
         if: ${{ matrix.njs == '' }}
         run: |
           $UNIT_CONFIGURE_CMD \
