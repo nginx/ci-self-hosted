@@ -193,18 +193,6 @@ jobs:
                     --ld-opt="$LD_OPT" \
           || cat build/autoconf.err
           $MAKE_UTILITY -j$(nproc) -k || $MAKE_UTILITY
-          $MAKE_UTILITY clean
-
-      - name: Configure and build Unit with njs with debug
-        if: ${{ matrix.njs == 'contrib' || matrix.njs == 'HEAD' }}
-        run: |
-          $UNIT_CONFIGURE_CMD \
-                    --njs \
-                    --cc-opt="$CC_OPT" \
-                    --ld-opt="$LD_OPT" \
-                    --debug \
-          || cat build/autoconf.err
-          $MAKE_UTILITY -j$(nproc) -k || $MAKE_UTILITY
 
       - name: Configure and build unit-perl
         run: |
