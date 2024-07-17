@@ -1,0 +1,312 @@
+name: Unit BuildBot
+
+on:
+  workflow_call:
+
+jobs:
+  check-if-allowed:
+    if: ${{ ( github.repository_owner == 'nginx' || github.repository_owner == 'nginxinc' ) }}
+    runs-on: [ ubuntu-latest ]
+    steps:
+      - name: Check if we're in the allowed environment
+        run: |
+          org_found=0
+          event_found=0
+          ref_found=0
+          ALLOWED_ORGS="nginx nginxinc"
+          ALLOWED_EVENTS="push"
+          ALLOWED_REFS="refs/heads/main refs/heads/master"
+          for org in $ALLOWED_ORGS; do
+            if [ "$org" == "$GITHUB_REPOSITORY_OWNER" ]; then org_found=1; fi
+          done
+          for event in $ALLOWED_EVENTS; do
+            if [ "$event" == "$GITHUB_EVENT_NAME" ]; then event_found=1; fi
+          done
+          for ref in $ALLOWED_REFS; do
+            if [ "$ref" == "$GITHUB_REF" ]; then ref_found=1; fi
+          done
+          if [ $org_found$event_found$ref_found -ne 111 ]; then
+            echo "Repository owner, event, or ref are not explicitely allowed to use this workflow: $GITHUB_REPOSITORY_OWNER, $GITHUB_EVENT_NAME, $GITHUB_REF"
+            exit 1
+          fi
+          exit 0
+
+  build:
+    name: ${{ matrix.os }}, ${{ matrix.arch }}${{ matrix.njs != '' && ', njs ' || '' }}${{ matrix.njs }}${{ matrix.user == 'privileged' && ', privileged' || '' }}
+    runs-on: [ "${{ matrix.os }}-${{ matrix.arch }}" ]
+    needs: check-if-allowed
+    strategy:
+      matrix:
+        os: [ alpine-3.19, amazonlinux-2, amazonlinux-2023, debian-11, debian-12, fedora-39, fedora-40, freebsd-14, rhel-8, rhel-9, ubuntu-20.04, ubuntu-22.04, ubuntu-24.04 ]
+        arch: [ amd64, arm64 ]
+        njs: [ '', 'contrib' ]
+        user: [ '' ]
+        exclude:
+          - os: fedora-39 # we don't provide Fedora arm64 runners
+            arch: arm64
+          - os: fedora-40 # we don't provide Fedora arm64 runners
+            arch: arm64
+          - os: freebsd-14 # we don't have arm64 builder for freebsd-14 yet
+            arch: arm64
+        include:
+          - os: ubuntu-22.04
+            arch: amd64
+            njs: HEAD
+          - os: ubuntu-22.04
+            arch: amd64
+            user: privileged
+      fail-fast: false
+
+    steps:
+      - name: checkout v3
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+        if: ${{ matrix.os == 'amazonlinux-2' }}
+
+      - name: checkout v4
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        if: ${{ matrix.os != 'amazonlinux-2' }}
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: 1.75.0
+          cache: false
+          rustflags: ''
+
+      - name: Set the defaults and set up environment
+        run: |
+            ENV_JSON=$(cat <<EOF
+            {
+            "alpine-3.19": {
+              "CONFIGURE_CMD_APPEND": "--no-pcre2"
+            },
+            "freebsd-14": {
+              "CC_OPT_APPEND": "-Wno-compound-token-split-by-macro"
+            },
+            "UNIT_CONFIGURE_CMD": "./configure --tests --openssl",
+            "CC_OPT": "-Injs/src -Injs/build",
+            "LD_OPT": "-Lnjs/build"
+            }
+            EOF
+            )
+
+            UNIT_CONFIGURE_CMD=$(echo $ENV_JSON | jq -r '.UNIT_CONFIGURE_CMD')
+            CC_OPT=$(echo $ENV_JSON | jq -r '.CC_OPT')
+            LD_OPT=$(echo $ENV_JSON | jq -r '.LD_OPT')
+            CC_OPT_APPEND=$(echo $ENV_JSON | jq -r '."${{ matrix.os }}".CC_OPT_APPEND // empty')
+            CONFIGURE_CMD_APPEND=$(echo $ENV_JSON | jq -r '."${{ matrix.os }}".CONFIGURE_CMD_APPEND // empty')
+
+            echo UNIT_CONFIGURE_CMD="$UNIT_CONFIGURE_CMD $CONFIGURE_CMD_APPEND" >> $GITHUB_ENV
+            echo CONFIGURE_CMD_APPEND="$CONFIGURE_CMD_APPEND" >> $GITHUB_ENV
+            echo CC_OPT="$CC_OPT $CC_OPT_APPEND" >> $GITHUB_ENV
+            echo LD_OPT="$LD_OPT" >> $GITHUB_ENV
+
+            case "${{ matrix.os }}" in
+              freebsd-*)
+                echo MAKE_UTILITY=gmake >> $GITHUB_ENV
+                ;;
+              *)
+                echo MAKE_UTILITY=make >> $GITHUB_ENV
+                ;;
+            esac
+            if [ -f "/etc/os-release" ]; then
+              ID=$(. /etc/os-release; echo $ID)
+            fi
+            if [ -x "/sbin/apk" ]; then
+              ID=alpine
+            fi
+            echo ID="$ID" >> $GITHUB_ENV
+
+      - name: Install build dependencies
+        run : |
+          case "$ID" in
+            alpine)
+              MISSING_BUILD_DEPS="alpine-sdk go linux-headers musl-dev nodejs nodejs-dev npm openjdk11-jdk openssl-dev pcre-dev perl-dev py3-pytest python3-dev procps ruby-dev ruby-rake"
+              sudo apk add $MISSING_BUILD_DEPS
+              sudo gem install rack
+              ;;
+            amzn|centos|fedora|rhel)
+              cd pkg/rpm
+              MISSING_BUILD_DEPS="$(make check-build-depends-all 2>&1 | grep -vE '^$|^The following|^make:|^touch') python3-pytest"
+              sudo yum makecache
+              sudo yum install -y $MISSING_BUILD_DEPS
+              ;;
+            debian|ubuntu)
+              cd pkg/deb
+              MISSING_BUILD_DEPS="$(make check-build-depends-all 2>&1 | grep -vE '^$|^The following|^make:|^touch') debhelper ruby-dev python3-pytest python3-dev"
+              sudo apt-get update
+              sudo apt-get install -y --no-install-suggests --no-install-recommends $MISSING_BUILD_DEPS
+              ;;
+            freebsd)
+              MISSING_BUILD_DEPS="devel/py-pytest gmake go node20 npm-node20 openjdk8 python3 ruby rubygem-rack rubygem-rake"
+              sudo pkg install -y $MISSING_BUILD_DEPS
+              ;;
+            *)
+              echo "Don't know what to do with ID: $ID"
+              ls -ld /etc/*release
+              for f in /etc/*release; do
+                echo "contents of $f"
+                cat $f;
+              done
+              exit 1
+              ;;
+            esac
+
+      - name: Check out njs HEAD
+        if: ${{ matrix.njs == 'HEAD' }}
+        run: |
+            git clone https://github.com/nginx/njs
+
+      - name: Check out njs
+        if: ${{ matrix.njs == 'contrib' }}
+        run: |
+          git clone https://github.com/nginx/njs -b $(sed "s/NJS_VERSION := \(.*\)/\1/" pkg/contrib/src/njs/version)
+
+      - name: Configure and make njs
+        if: ${{ matrix.njs == 'contrib' || matrix.njs == 'HEAD' }}
+        run: |
+          cd njs
+          ./configure \
+                    --no-libxml2 \
+                    --no-zlib \
+                    $CONFIGURE_CMD_APPEND \
+          || cat build/autoconf.err
+          $MAKE_UTILITY -j $(nproc)
+
+      - name: Configure and build Unit with njs
+        if: ${{ matrix.njs == '' }}
+        run: |
+          $UNIT_CONFIGURE_CMD \
+                    --cc-opt="$CC_OPT" \
+                    --ld-opt="$LD_OPT" \
+          || cat build/autoconf.err
+          $MAKE_UTILITY -j$(nproc) -k || $MAKE_UTILITY
+
+      - name: Configure and build Unit with njs
+        if: ${{ matrix.njs == 'contrib' || matrix.njs == 'HEAD' }}
+        run: |
+          $UNIT_CONFIGURE_CMD \
+                    --njs \
+                    --cc-opt="$CC_OPT" \
+                    --ld-opt="$LD_OPT" \
+          || cat build/autoconf.err
+          $MAKE_UTILITY -j$(nproc) -k || $MAKE_UTILITY
+          $MAKE_UTILITY clean
+
+      - name: Configure and build Unit with njs with debug
+        if: ${{ matrix.njs == 'contrib' || matrix.njs == 'HEAD' }}
+        run: |
+          $UNIT_CONFIGURE_CMD \
+                    --njs \
+                    --cc-opt="$CC_OPT" \
+                    --ld-opt="$LD_OPT" \
+                    --debug \
+          || cat build/autoconf.err
+          $MAKE_UTILITY -j$(nproc) -k || $MAKE_UTILITY
+
+      - name: Configure and build unit-perl
+        run: |
+          ./configure perl \
+          || cat build/autoconf.err
+          $MAKE_UTILITY -j$(nproc) -k perl
+
+      - name: Configure and build unit-php
+        if: ${{ ! startsWith( matrix.os, 'alpine-') && ! startsWith( matrix.os, 'freebsd-') }}
+        run: |
+          ./configure php \
+          || cat build/autoconf.err
+          $MAKE_UTILITY -j$(nproc) -k php
+
+      - name: Configure and build unit-python2
+        if: ${{ matrix.os == 'amazonlinux-2' || matrix.os == 'rhel-8' }}
+        run: |
+          ./configure python --config=python2-config \
+          || cat build/autoconf.err
+          $MAKE_UTILITY -j$(nproc) -k python2
+
+      - name: Configure and build unit-python3
+        run: |
+          ./configure python --config=python3-config \
+          || cat build/autoconf.err
+          $MAKE_UTILITY -j$(nproc) -k python3
+
+      - name: Configure and build unit-go
+        run: |
+          ./configure go --go-path= \
+          || cat build/autoconf.err
+          $MAKE_UTILITY -j$(nproc) -k go
+          $MAKE_UTILITY go-install
+
+      - name: Configure and build unit-ruby
+        if: ${{ ! startsWith( matrix.os, 'amazonlinux-') && ! startsWith( matrix.os, 'rhel-') }}
+        run: |
+          ./configure ruby \
+          || cat build/autoconf.err
+          $MAKE_UTILITY -j$(nproc) -k ruby
+
+      - name: Configure and build unit-nodejs
+        if: ${{ startsWith( matrix.os, 'alpine-') || startsWith ( matrix.os, 'freebsd-') }}
+        run: |
+          ./configure nodejs \
+          || cat build/autoconf.err
+          $MAKE_UTILITY -j$(nproc) -k node-local-install DESTDIR=node
+
+      - name: Configure and build unit-java
+        run: |
+          ./configure java \
+          || cat build/autoconf.err
+          $MAKE_UTILITY -j$(nproc) -k java
+
+      - name: Configure and build unit-wasmtime
+        run: |
+          $MAKE_UTILITY -C pkg/contrib .wasmtime
+          ./configure wasm \
+                    --include-path=pkg/contrib/wasmtime/crates/c-api/include \
+                    --lib-path=pkg/contrib/wasmtime/target/release \
+          || cat build/autoconf.err
+          $MAKE_UTILITY -j$(nproc) -k wasm
+          rm -f build/lib/unit/modules/wasm.unit.so
+
+      - name: Install newer pytest
+        if: ${{ matrix.os == 'amazonlinux-2' || matrix.os == 'rhel-8' }}
+        run: |
+            printf "%s\n%s\n%s\n%s\n" "pytest>=6.0.1" "pyhamcrest" "cryptography==3.4.8" "pyOpenSSL==19.1.0" > /tmp/unit-requirements.txt
+            sudo python3 -m pip install --upgrade pip
+            python3 -m pip install -r /tmp/unit-requirements.txt
+
+      - name: Build tests
+        run: |
+          $MAKE_UTILITY -j$(nproc) tests
+
+      - name: Run tests
+        if: ${{ matrix.user == '' }}
+        run: |
+          ./build/tests
+          ulimit -c unlimited
+          python3 -m pytest test
+
+      - name: Run privileged tests
+        if: ${{ matrix.user == 'privileged' }}
+        run: |
+          sudo ./build/tests
+          ulimit -c unlimited
+          sudo python3 -m pytest test
+
+  print:
+    runs-on: [ debian-12-amd64 ]
+    needs: check-if-allowed
+
+    steps:
+      - name: checkout v4
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+
+      - name: Checkout and build clang-ast
+        run: |
+          git clone https://github.com/thresheek/clang-ast -b unit
+          cd clang-ast
+          make CONFIG=llvm-config-14
+
+      - name: Configure and build Unit
+        run: |
+          CC=clang-14 ./configure --tests --openssl --debug || cat build/autoconf.err
+          make CFLAGS='-Xclang -load -Xclang clang-ast/ngx-ast.so -Xclang -plugin -Xclang ngx-ast' NXT_SHARED_LOCAL_LINK=: CC=clang-14 build/lib/libnxt.so V=1
+          make clean
