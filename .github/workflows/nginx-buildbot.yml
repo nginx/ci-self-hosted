@@ -1,0 +1,960 @@
+name: buildbot
+
+on:
+  workflow_call:
+
+env:
+  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
+
+defaults:
+  run:
+    shell: 'bash -Eeo pipefail -x {0}'
+
+jobs:
+  check-if-allowed:
+    if: ${{ ( github.repository_owner == 'nginx' || github.repository_owner == 'nginxinc' ) }}
+    runs-on: [ ubuntu-latest ]
+    steps:
+      - name: Check if we're in the allowed environment
+        run: |
+          org_found=0
+          event_found=0
+          ref_found=0
+          ALLOWED_ORGS="nginx nginxinc"
+          ALLOWED_EVENTS="push"
+          ALLOWED_REFS="refs/heads/main refs/heads/master refs/heads/stable-1.26 refs/heads/branches/stable-1.26"
+          for org in $ALLOWED_ORGS; do
+            if [ "$org" == "$GITHUB_REPOSITORY_OWNER" ]; then org_found=1; fi
+          done
+          for event in $ALLOWED_EVENTS; do
+            if [ "$event" == "$GITHUB_EVENT_NAME" ]; then event_found=1; fi
+          done
+          for ref in $ALLOWED_REFS; do
+            if [ "$ref" == "$GITHUB_REF" ]; then ref_found=1; fi
+          done
+          if [ $org_found$event_found$ref_found -ne 111 ]; then
+            echo "Repository owner, event, or ref are not explicitely allowed to use this workflow: $GITHUB_REPOSITORY_OWNER, $GITHUB_EVENT_NAME, $GITHUB_REF"
+            exit 1
+          fi
+          exit 0
+
+  generic:
+    name: ${{ matrix.os }}, ${{ matrix.subarch != '' && matrix.subarch || matrix.arch }} ${{ matrix.sanitizer != '' && matrix.sanitizer || '' }}
+    runs-on: [ "${{ matrix.os }}-${{ matrix.arch }}" ]
+    needs: check-if-allowed
+    strategy:
+      matrix:
+        os: [ alpine-3.19, alpine-3.20, amazonlinux-2, amazonlinux-2023, debian-11, debian-12, freebsd-14, rhel-8, rhel-9, sles-12, ubuntu-20.04, ubuntu-22.04, ubuntu-24.04 ]
+        arch: [ amd64, arm64 ]
+        subarch: [ '' ]
+        sanitizer: [ '' ]
+        exclude:
+          - os: freebsd-14 # we don't have an arm64 builder for freebsd-14 yet
+            arch: arm64
+          - os: sles-12 # we don't have an arm64 for SLES 12
+            arch: arm64
+        include:
+          - os: debian-12
+            arch: amd64
+            subarch: x86
+          - os: ubuntu-22.04
+            arch: amd64
+            sanitizer: asan
+      fail-fast: false
+
+    steps:
+      - name: Check out nginx sources
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+        if: ${{ matrix.os == 'amazonlinux-2' || matrix.os == 'sles-12' }}
+
+      - name: Check out nginx sources
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        if: ${{ matrix.os != 'amazonlinux-2' && matrix.os != 'sles-12' }}
+
+      - name: Set the defaults and set up environment
+        run: |
+            ENV_JSON=$(cat <<EOF
+            {
+            "alpine-3.19": {
+              "CC_OPT": "$(. /usr/share/abuild/default.conf; echo $CFLAGS)",
+              "LD_OPT": "$(. /usr/share/abuild/default.conf; echo $LDFLAGS)"
+            },
+            "alpine-3.20": {
+              "CC_OPT": "$(. /usr/share/abuild/default.conf; echo $CFLAGS)",
+              "LD_OPT": "$(. /usr/share/abuild/default.conf; echo $LDFLAGS)"
+            },
+            "amazonlinux-2": {
+              "CC_OPT": "$(rpm --eval %{optflags}) $(pcre2-config --cflags) -fPIC",
+              "LD_OPT": "-Wl,-z,relro -Wl,-z,now"
+            },
+            "amazonlinux-2023": {
+              "CC_OPT": "$(rpm --eval %{optflags}) $(pcre2-config --cflags) -fPIC",
+              "LD_OPT": "-Wl,-z,relro -Wl,-z,now"
+            },
+            "debian-11": {
+              "CC_OPT": "$(DEB_BUILD_MAINT_OPTIONS=hardening=+all DEB_CFLAGS_MAINT_APPEND=-fPIC DEB_LDFLAGS_MAINT_APPEND=-Wl,--as-needed dpkg-buildflags --get CFLAGS)",
+              "LD_OPT": "$(DEB_BUILD_MAINT_OPTIONS=hardening=+all DEB_CFLAGS_MAINT_APPEND=-fPIC DEB_LDFLAGS_MAINT_APPEND=-Wl,--as-needed dpkg-buildflags --get LDFLAGS)"
+            },
+            "debian-12": {
+              "CC_OPT": "$(DEB_BUILD_MAINT_OPTIONS=hardening=+all DEB_CFLAGS_MAINT_APPEND=-fPIC DEB_LDFLAGS_MAINT_APPEND=-Wl,--as-needed dpkg-buildflags --get CFLAGS)",
+              "LD_OPT": "$(DEB_BUILD_MAINT_OPTIONS=hardening=+all DEB_CFLAGS_MAINT_APPEND=-fPIC DEB_LDFLAGS_MAINT_APPEND=-Wl,--as-needed dpkg-buildflags --get LDFLAGS)"
+            },
+            "freebsd-14": {
+              "CC_OPT": "-I/usr/local/include -Wno-compound-token-split-by-macro",
+              "LD_OPT": "-L/usr/local/lib -Wl,-z,relro -Wl,-z,now"
+            },
+            "rhel-8": {
+              "CC_OPT": "$(rpm --eval %{optflags}) $(pcre2-config --cflags) -fPIC",
+              "LD_OPT": "-Wl,-z,relro -Wl,-z,now"
+            },
+            "rhel-9": {
+              "CC_OPT": "$(rpm --eval %{optflags}) $(pcre2-config --cflags) -fPIC",
+              "LD_OPT": "-Wl,-z,relro -Wl,-z,now"
+            },
+            "sles-12": {
+              "CC_OPT": "$(rpm --eval %{optflags}) $(pcre2-config --cflags) -fPIC",
+              "LD_OPT": "-Wl,-z,relro -Wl,-z,now"
+            },
+            "ubuntu-20.04": {
+              "CC_OPT": "$(DEB_BUILD_MAINT_OPTIONS=hardening=+all DEB_CFLAGS_MAINT_APPEND=-fPIC DEB_LDFLAGS_MAINT_APPEND=-Wl,--as-needed dpkg-buildflags --get CFLAGS)",
+              "LD_OPT": "$(DEB_BUILD_MAINT_OPTIONS=hardening=+all DEB_CFLAGS_MAINT_APPEND=-fPIC DEB_LDFLAGS_MAINT_APPEND=-Wl,--as-needed dpkg-buildflags --get LDFLAGS)"
+            },
+            "ubuntu-22.04": {
+              "CC_OPT": "$(DEB_BUILD_MAINT_OPTIONS=hardening=+all DEB_CFLAGS_MAINT_APPEND=-fPIC DEB_LDFLAGS_MAINT_APPEND=-Wl,--as-needed dpkg-buildflags --get CFLAGS)",
+              "LD_OPT": "$(DEB_BUILD_MAINT_OPTIONS=hardening=+all DEB_CFLAGS_MAINT_APPEND=-fPIC DEB_LDFLAGS_MAINT_APPEND=-Wl,--as-needed dpkg-buildflags --get LDFLAGS)"
+            },
+            "ubuntu-24.04": {
+              "CC_OPT": "$(DEB_BUILD_MAINT_OPTIONS=hardening=+all DEB_CFLAGS_MAINT_APPEND=-fPIC DEB_LDFLAGS_MAINT_APPEND=-Wl,--as-needed dpkg-buildflags --get CFLAGS)",
+              "LD_OPT": "$(DEB_BUILD_MAINT_OPTIONS=hardening=+all DEB_CFLAGS_MAINT_APPEND=-fPIC DEB_LDFLAGS_MAINT_APPEND=-Wl,--as-needed dpkg-buildflags --get LDFLAGS)"
+            },
+            "NGINX_CONFIGURE_CMD_MIN": "auto/configure \
+                                        --without-http_charset_module \
+                                        --without-http_gzip_module \
+                                        --without-http_ssi_module \
+                                        --without-http_userid_module \
+                                        --without-http_access_module \
+                                        --without-http_auth_basic_module \
+                                        --without-http_mirror_module \
+                                        --without-http_autoindex_module \
+                                        --without-http_geo_module \
+                                        --without-http_map_module \
+                                        --without-http_split_clients_module \
+                                        --without-http_referer_module \
+                                        --without-http_rewrite_module \
+                                        --without-http_proxy_module \
+                                        --without-http_fastcgi_module \
+                                        --without-http_uwsgi_module \
+                                        --without-http_scgi_module \
+                                        --without-http_memcached_module \
+                                        --without-http-cache \
+                                        --without-http_limit_conn_module \
+                                        --without-http_limit_req_module \
+                                        --without-http_empty_gif_module \
+                                        --without-http_browser_module \
+                                        --without-http_upstream_hash_module \
+                                        --without-http_upstream_ip_hash_module \
+                                        --without-http_upstream_least_conn_module \
+                                        --without-http_upstream_random_module \
+                                        --without-http_upstream_keepalive_module \
+                                        --without-http_upstream_zone_module \
+                                        --with-mail \
+                                        --without-mail_imap_module \
+                                        --without-mail_pop3_module \
+                                        --without-mail_smtp_module \
+                                        --with-stream \
+                                        --without-stream_limit_conn_module \
+                                        --without-stream_access_module \
+                                        --without-stream_geo_module \
+                                        --without-stream_map_module \
+                                        --without-stream_split_clients_module \
+                                        --without-stream_return_module \
+                                        --without-stream_set_module \
+                                        --without-stream_upstream_hash_module \
+                                        --without-stream_upstream_least_conn_module \
+                                        --without-stream_upstream_random_module \
+                                        --without-stream_upstream_zone_module",
+            "NGINX_CONFIGURE_CMD_COMMON": "auto/configure \
+                                           --prefix=/tmp \
+                                           --with-http_ssl_module \
+                                           --with-http_realip_module \
+                                           --with-http_addition_module \
+                                           --with-http_sub_module \
+                                           --with-http_dav_module \
+                                           --with-http_flv_module \
+                                           --with-http_mp4_module \
+                                           --with-http_gunzip_module \
+                                           --with-http_gzip_static_module \
+                                           --with-http_random_index_module \
+                                           --with-http_secure_link_module \
+                                           --with-http_stub_status_module \
+                                           --with-mail \
+                                           --with-mail_ssl_module \
+                                           --with-select_module \
+                                           --with-poll_module \
+                                           --with-http_auth_request_module \
+                                           --with-http_v2_module \
+                                           --with-http_slice_module \
+                                           --with-stream \
+                                           --with-stream_ssl_module \
+                                           --with-stream_ssl_preread_module \
+                                           --with-stream_realip_module \
+                                           --with-threads \
+                                           --with-compat",
+            "NGINX_CONFIGURE_ADD_STD_COMMON": "--with-cpp_test_module",
+            "NGINX_CONFIGURE_ADD_STD": "--with-http_perl_module \
+                                        --with-http_xslt_module \
+                                        --with-http_image_filter_module",
+            "NGINX_CONFIGURE_ADD_STD_MODULES": "--with-http_perl_module=dynamic \
+                                                --with-http_xslt_module=dynamic \
+                                                --with-http_image_filter_module=dynamic",
+            "NGINX_CONFIGURE_ADD_COMMON": "--with-http_degradation_module \
+                                           --with-http_v3_module",
+            "NGINX_CONFIGURE_ADD_GEOIP": "--with-http_geoip_module \
+                                          --with-stream_geoip_module",
+            "NGINX_CONFIGURE_ADD_GEOIP_MODULES": "--with-http_geoip_module=dynamic \
+                                                  --with-stream_geoip_module=dynamic",
+            "NGINX_CONFIGURE_ADD_AIO": "--with-file-aio",
+            "TEST_NGINX_GLOBALS_HTTP_AIO": "aio on; directio 0; tcp_nopush on;"
+            }
+            EOF
+            )
+
+            CC_OPT=$(echo $ENV_JSON | jq -r '."${{ matrix.os }}".CC_OPT')
+            LD_OPT=$(echo $ENV_JSON | jq -r '."${{ matrix.os }}".LD_OPT')
+            CC_OPT_ADD=""
+            LD_OPT_ADD=""
+
+            NGINX_CONFIGURE_CMD_MIN=$(echo $ENV_JSON | jq -r '.NGINX_CONFIGURE_CMD_MIN')
+            NGINX_CONFIGURE_CMD_COMMON=$(echo $ENV_JSON | jq -r '.NGINX_CONFIGURE_CMD_COMMON')
+            NGINX_CONFIGURE_ADD_STD_COMMON=$(echo $ENV_JSON | jq -r '.NGINX_CONFIGURE_ADD_STD_COMMON')
+            NGINX_CONFIGURE_ADD_STD=$(echo $ENV_JSON | jq -r '.NGINX_CONFIGURE_ADD_STD')
+            NGINX_CONFIGURE_ADD_STD_MODULES=$(echo $ENV_JSON | jq -r '.NGINX_CONFIGURE_ADD_STD_MODULES')
+            NGINX_CONFIGURE_ADD_COMMON=$(echo $ENV_JSON | jq -r '.NGINX_CONFIGURE_ADD_COMMON')
+            NGINX_CONFIGURE_ADD_GEOIP=$(echo $ENV_JSON | jq -r '.NGINX_CONFIGURE_ADD_GEOIP')
+            NGINX_CONFIGURE_ADD_GEOIP_MODULES=$(echo $ENV_JSON | jq -r '.NGINX_CONFIGURE_ADD_GEOIP_MODULES')
+            NGINX_CONFIGURE_ADD_AIO=$(echo $ENV_JSON | jq -r '.NGINX_CONFIGURE_ADD_AIO')
+            TEST_NGINX_GLOBALS_HTTP_AIO=$(echo $ENV_JSON | jq -r '.TEST_NGINX_GLOBALS_HTTP_AIO')
+
+            # per-target hacks
+            case "${{ matrix.os }}" in
+              amazonlinux-2023)
+                NGINX_CONFIGURE_ADD_GEOIP=""
+                NGINX_CONFIGURE_ADD_GEOIP_MODULES=""
+                TEST_NGINX_GLOBALS_HTTP_AIO=""
+                ;;
+              freebsd-*)
+                NGINX_CONFIGURE_ADD_GEOIP=""
+                NGINX_CONFIGURE_ADD_GEOIP_MODULES=""
+                TEST_NGINX_GLOBALS_HTTP_AIO="aio on; sendfile on; tcp_nopush on;"
+                ;;
+              rhel-*)
+                NGINX_CONFIGURE_ADD_GEOIP=""
+                NGINX_CONFIGURE_ADD_GEOIP_MODULES=""
+                ;;
+              sles-*)
+                NGINX_CONFIGURE_ADD_COMMON=${NGINX_CONFIGURE_ADD_COMMON%%--with-http_v3_module}
+                ;;
+            esac
+
+            case "${{ matrix.subarch }}" in
+              x86)
+                CC_OPT_ADD="-m32"
+                LD_OPT_ADD="-m32"
+                # abuse for 32-bit perl...
+                NGINX_CONFIGURE_ADD_GEOIP="--with-perl=/usr/bin/perl5.36-i386-linux-gnu"
+                NGINX_CONFIGURE_ADD_GEOIP_MODULES="--with-perl=/usr/bin/perl5.36-i386-linux-gnu"
+                NGINX_CONFIGURE_ADD_AUX_CC_OPT="$CC_OPT_ADD"
+                NGINX_CONFIGURE_ADD_AUX_LD_OPT="$LD_OPT_ADD"
+              ;;
+            esac
+
+            case "${{ matrix.sanitizer }}" in
+              asan)
+                CC_OPT="-O1 -g -fsanitize=address -fno-omit-frame-pointer -DNJS_DEBUG_MEMORY -DNGX_DEBUG_PALLOC -DNGX_DEBUG_MALLOC -DNGX_QUIC_DEBUG_PACKETS -DNGX_QUIC_DEBUG_FRAMES -DNGX_QUIC_DEBUG_ALLOC -DNGX_QUIC_DEBUG_CRYPTO"
+                LD_OPT="-fsanitize=address -lcrypt"
+                NGINX_CONFIGURE_ADD_AUX_CC_OPT="-O1 -g -fsanitize=address -fno-omit-frame-pointer -DNGX_DEBUG_PALLOC -DNGX_DEBUG_MALLOC"
+                NGINX_CONFIGURE_ADD_AUX_LD_OPT="$LD_OPT"
+                ;;
+            esac
+
+            echo CC_OPT="$CC_OPT_ADD $CC_OPT" >> $GITHUB_ENV
+            echo LD_OPT="$LD_OPT_ADD $LD_OPT" >> $GITHUB_ENV
+            echo NGINX_CONFIGURE_CMD_MIN="$NGINX_CONFIGURE_CMD_MIN" >> $GITHUB_ENV
+            echo NGINX_CONFIGURE_CMD_COMMON="$NGINX_CONFIGURE_CMD_COMMON" >> $GITHUB_ENV
+            echo NGINX_CONFIGURE_ADD_COMMON="$NGINX_CONFIGURE_ADD_COMMON" >> $GITHUB_ENV
+            echo NGINX_CONFIGURE_ADD_STD_COMMON="$NGINX_CONFIGURE_ADD_STD_COMMON" >> $GITHUB_ENV
+            echo NGINX_CONFIGURE_ADD_STD="$NGINX_CONFIGURE_ADD_STD" >> $GITHUB_ENV
+            echo NGINX_CONFIGURE_ADD_STD_MODULES="$NGINX_CONFIGURE_ADD_STD_MODULES" >> $GITHUB_ENV
+            echo NGINX_CONFIGURE_ADD_GEOIP="$NGINX_CONFIGURE_ADD_GEOIP" >> $GITHUB_ENV
+            echo NGINX_CONFIGURE_ADD_GEOIP_MODULES="$NGINX_CONFIGURE_ADD_GEOIP_MODULES" >> $GITHUB_ENV
+            echo NGINX_CONFIGURE_ADD_AIO="$NGINX_CONFIGURE_ADD_AIO" >> $GITHUB_ENV
+            echo NGINX_CONFIGURE_ADD_AUX_CC_OPT="$NGINX_CONFIGURE_ADD_AUX_CC_OPT" >> $GITHUB_ENV
+            echo NGINX_CONFIGURE_ADD_AUX_LD_OPT="$NGINX_CONFIGURE_ADD_AUX_LD_OPT" >> $GITHUB_ENV
+            echo TEST_NGINX_GLOBALS_HTTP_AIO="$TEST_NGINX_GLOBALS_HTTP_AIO" >> $GITHUB_ENV
+
+            # a directory that might have newly added tests in -try scenario
+            mkdir -p t/
+
+            # enable coredumps
+            ulimit -c unlimited
+
+      - name: Check out nginx tests
+        run: |
+          git clone https://github.com/nginx/nginx-tests
+
+      - name: Fix kernel mmap rnd bits
+        if: matrix.sanitizer == 'asan'
+        # Asan in ubuntu 22.04 is incompatible with high-entropy ASLR in much
+        # newer kernels using leading to random crashes: https://reviews.llvm.org/D148280
+        run: sudo sysctl vm.mmap_rnd_bits=28
+
+      - name: Configure and build std
+        run: |
+          ./auto/configure \
+            --with-cc-opt="$NGINX_CONFIGURE_ADD_AUX_CC_OPT" \
+            --with-ld-opt="$NGINX_CONFIGURE_ADD_AUX_LD_OPT" \
+          || cat objs/autoconf.err
+          make -j$(nproc) -k || make
+
+      - name: Cleanup
+        run: make clean
+
+      - name: Configure and build min
+        run: |
+          $NGINX_CONFIGURE_CMD_MIN \
+            --with-cc-opt="$NGINX_CONFIGURE_ADD_AUX_CC_OPT" \
+            --with-ld-opt="$NGINX_CONFIGURE_ADD_AUX_LD_OPT" \
+          || cat objs/autoconf.err
+          make -j$(nproc) -k || make
+
+      - name: Cleanup
+        run: make clean
+
+      - name: Configure and build package-max
+        run: |
+          $NGINX_CONFIGURE_CMD_COMMON \
+            $NGINX_CONFIGURE_ADD_COMMON \
+            $NGINX_CONFIGURE_ADD_STD_COMMON \
+            $NGINX_CONFIGURE_ADD_STD \
+            $NGINX_CONFIGURE_ADD_GEOIP \
+            --with-cc-opt="$CC_OPT" \
+            --with-ld-opt="$LD_OPT" \
+          || cat objs/autoconf.err
+          make -j$(nproc) -k || make
+
+      - name: Test package-max
+        working-directory: nginx-tests
+        run: |
+          prove -v -j$(nproc) --state=save ../t . || prove -v --state=failed
+        env:
+          TEST_NGINX_BINARY: "${{ github.workspace }}/objs/nginx"
+          TEST_NGINX_VERBOSE: 1
+          PERL5LIB: "${{ github.workspace }}/nginx-tests/lib"
+          ASAN_OPTIONS: "detect_odr_violation=0:report_globals=0:detect_leaks=0"
+
+      - name: Cleanup
+        run: make clean
+
+      - name: Configure and build package-max debug
+        run: |
+          $NGINX_CONFIGURE_CMD_COMMON \
+            $NGINX_CONFIGURE_ADD_COMMON \
+            $NGINX_CONFIGURE_ADD_STD_COMMON \
+            $NGINX_CONFIGURE_ADD_STD \
+            $NGINX_CONFIGURE_ADD_GEOIP \
+            --with-cc-opt="$CC_OPT" \
+            --with-ld-opt="$LD_OPT" \
+            --with-debug \
+          || cat objs/autoconf.err
+          make -j$(nproc) -k || make
+
+      - name: Test package-max debug
+        working-directory: nginx-tests
+        run: |
+          prove -v -j$(nproc) --state=save ../t . || prove -v --state=failed
+        env:
+          TEST_NGINX_BINARY: "${{ github.workspace }}/objs/nginx"
+          TEST_NGINX_VERBOSE: 1
+          PERL5LIB: "${{ github.workspace }}/nginx-tests/lib"
+          ASAN_OPTIONS: "detect_odr_violation=0:report_globals=0:detect_leaks=0"
+
+      - name: Cleanup
+        run: make clean
+
+      - name: Configure and build modules
+        run: |
+          $NGINX_CONFIGURE_CMD_COMMON \
+            $NGINX_CONFIGURE_ADD_COMMON \
+            $NGINX_CONFIGURE_ADD_STD_COMMON \
+            $NGINX_CONFIGURE_ADD_STD_MODULES \
+            $NGINX_CONFIGURE_ADD_GEOIP_MODULES \
+            --with-cc-opt="$CC_OPT" \
+            --with-ld-opt="$LD_OPT" \
+          || cat objs/autoconf.err
+          make modules
+
+      - name: Configure and build dynamic
+        run: |
+          $NGINX_CONFIGURE_CMD_COMMON \
+            $NGINX_CONFIGURE_ADD_COMMON \
+            $NGINX_CONFIGURE_ADD_STD_COMMON \
+            --with-cc-opt="$CC_OPT" \
+            --with-ld-opt="$LD_OPT" \
+          || cat objs/autoconf.err
+          make -j$(nproc) -k || make
+
+      - name: Test dynamic
+        working-directory: nginx-tests
+        run: |
+          prove -v -j$(nproc) --state=save ../t . || prove -v --state=failed
+        env:
+          TEST_NGINX_BINARY: "${{ github.workspace }}/objs/nginx"
+          TEST_NGINX_GLOBALS: "load_module ${{ github.workspace }}/objs/ngx_http_image_filter_module.so;load_module ${{ github.workspace }}/objs/ngx_http_perl_module.so;load_module ${{ github.workspace }}/objs/ngx_http_xslt_filter_module.so;"
+          TEST_NGINX_VERBOSE: 1
+          PERL5LIB: "${{ github.workspace }}/nginx-tests/lib"
+          ASAN_OPTIONS: "detect_odr_violation=0:report_globals=0:detect_leaks=0"
+
+      - name: Cleanup
+        run: make clean
+
+      - name: Configure and build modules debug
+        run: |
+          $NGINX_CONFIGURE_CMD_COMMON \
+            $NGINX_CONFIGURE_ADD_COMMON \
+            $NGINX_CONFIGURE_ADD_STD_COMMON \
+            $NGINX_CONFIGURE_ADD_STD_MODULES \
+            $NGINX_CONFIGURE_ADD_GEOIP_MODULES \
+            --with-cc-opt="$CC_OPT" \
+            --with-ld-opt="$LD_OPT" \
+            --with-debug \
+          || cat objs/autoconf.err
+          make modules
+
+      - name: Configure and build dynamic debug
+        run: |
+          $NGINX_CONFIGURE_CMD_COMMON \
+            $NGINX_CONFIGURE_ADD_COMMON \
+            $NGINX_CONFIGURE_ADD_STD_COMMON \
+            --with-cc-opt="$CC_OPT" \
+            --with-ld-opt="$LD_OPT" \
+            --with-debug \
+          || cat objs/autoconf.err
+          make -j$(nproc) -k || make
+
+      - name: Test dynamic debug
+        working-directory: nginx-tests
+        run: |
+          prove -v -j$(nproc) --state=save ../t . || prove -v --state=failed
+        env:
+          TEST_NGINX_BINARY: "${{ github.workspace }}/objs/nginx"
+          TEST_NGINX_GLOBALS: "load_module ${{ github.workspace }}/objs/ngx_http_image_filter_module.so;load_module /${{ github.workspace }}/objs/ngx_http_perl_module.so;load_module /${{ github.workspace }}/objs/ngx_http_xslt_filter_module.so;"
+          TEST_NGINX_VERBOSE: 1
+          PERL5LIB: "${{ github.workspace }}/nginx-tests/lib"
+          ASAN_OPTIONS: "detect_odr_violation=0:report_globals=0:detect_leaks=0"
+
+      - name: Cleanup
+        run: make clean
+
+      - name: Configure and build aio
+        run: |
+          $NGINX_CONFIGURE_CMD_COMMON \
+            $NGINX_CONFIGURE_ADD_COMMON \
+            $NGINX_CONFIGURE_ADD_STD_COMMON \
+            $NGINX_CONFIGURE_ADD_STD \
+            $NGINX_CONFIGURE_ADD_GEOIP \
+            $NGINX_CONFIGURE_ADD_AIO \
+            --with-cc-opt="$CC_OPT" \
+            --with-ld-opt="$LD_OPT" \
+          || cat objs/autoconf.err
+          make -j$(nproc) -k || make
+
+      - name: Test aio
+        working-directory: nginx-tests
+        run: |
+          prove -v -j$(nproc) --state=save ../t . || prove -v --state=failed
+        env:
+          TEST_NGINX_BINARY: "${{ github.workspace }}/objs/nginx"
+          TEST_NGINX_VERBOSE: 1
+          PERL5LIB: "${{ github.workspace }}/nginx-tests/lib"
+          ASAN_OPTIONS: "detect_odr_violation=0:report_globals=0:detect_leaks=0"
+          TEST_NGINX_GLOBALS_HTTP: "${{ env.TEST_NGINX_GLOBALS_HTTP_AIO }}"
+
+      - name: Test aio-write
+        working-directory: nginx-tests
+        run: |
+          prove -v -j$(nproc) --state=save ../t . || prove -v --state=failed
+        env:
+          TEST_NGINX_BINARY: "${{ github.workspace }}/objs/nginx"
+          TEST_NGINX_VERBOSE: 1
+          PERL5LIB: "${{ github.workspace }}/nginx-tests/lib"
+          ASAN_OPTIONS: "detect_odr_violation=0:report_globals=0:detect_leaks=0"
+          TEST_NGINX_GLOBALS_HTTP: "aio threads; aio_write on;"
+
+      - name: Cleanup
+        run: make clean
+
+      - name: Configure and build aio debug
+        run: |
+          $NGINX_CONFIGURE_CMD_COMMON \
+            $NGINX_CONFIGURE_ADD_COMMON \
+            $NGINX_CONFIGURE_ADD_STD_COMMON \
+            $NGINX_CONFIGURE_ADD_STD \
+            $NGINX_CONFIGURE_ADD_GEOIP \
+            $NGINX_CONFIGURE_ADD_AIO \
+            --with-cc-opt="$CC_OPT" \
+            --with-ld-opt="$LD_OPT" \
+            --with-debug \
+          || cat objs/autoconf.err
+          make -j$(nproc) -k || make
+
+      - name: Test aio debug
+        working-directory: nginx-tests
+        run: |
+          prove -v -j$(nproc) --state=save ../t . || prove -v --state=failed
+        env:
+          TEST_NGINX_BINARY: "${{ github.workspace }}/objs/nginx"
+          TEST_NGINX_VERBOSE: 1
+          PERL5LIB: "${{ github.workspace }}/nginx-tests/lib"
+          ASAN_OPTIONS: "detect_odr_violation=0:report_globals=0:detect_leaks=0"
+          TEST_NGINX_GLOBALS_HTTP: "${{ env.TEST_NGINX_GLOBALS_HTTP_AIO }}"
+
+      - name: Test aio-write debug
+        working-directory: nginx-tests
+        run: |
+          prove -v -j$(nproc) --state=save ../t . || prove -v --state=failed
+        env:
+          TEST_NGINX_BINARY: "${{ github.workspace }}/objs/nginx"
+          TEST_NGINX_VERBOSE: 1
+          PERL5LIB: "${{ github.workspace }}/nginx-tests/lib"
+          ASAN_OPTIONS: "detect_odr_violation=0:report_globals=0:detect_leaks=0"
+          TEST_NGINX_GLOBALS_HTTP: "aio threads; aio_write on;"
+
+      - name: Cleanup
+        run: make clean
+
+      - name: Check out nginx delay body filter
+        if: ${{ matrix.subarch == '' }}
+        run: |
+          git clone https://github.com/nginx/ngx_http_delay_body_filter_module ndb
+
+      - name: Configure and build ndb
+        if: ${{ matrix.subarch == '' }}
+        run: |
+          $NGINX_CONFIGURE_CMD_COMMON \
+            $NGINX_CONFIGURE_ADD_COMMON \
+            $NGINX_CONFIGURE_ADD_STD_COMMON \
+            $NGINX_CONFIGURE_ADD_STD \
+            $NGINX_CONFIGURE_ADD_GEOIP \
+            --with-cc-opt="$CC_OPT" \
+            --with-ld-opt="$LD_OPT" \
+            --add-module=./ndb/ \
+          || cat objs/autoconf.err
+          make -j$(nproc) -k || make
+
+      - name: Test ndb
+        if: ${{ matrix.subarch == '' }}
+        run: |
+          prove -v -j$(nproc) --state=save ./ndb/t || prove -v --state=failed
+        env:
+          TEST_NGINX_BINARY: "${{ github.workspace }}/objs/nginx"
+          TEST_NGINX_VERBOSE: 1
+          PERL5LIB: "${{ github.workspace }}/nginx-tests/lib"
+          ASAN_OPTIONS: "detect_odr_violation=0:report_globals=0:detect_leaks=0"
+
+  # AST build
+  print:
+    name: debian-12, amd64, print
+    runs-on: [ debian-12-amd64 ]
+    needs: check-if-allowed
+
+    steps:
+      - name: Check out nginx sources
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+
+      - name: Checkout and build clang-ast
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        with:
+          repository: nginx/clang-ast
+          path: clang-ast
+
+      - name: Build AST
+        working-directory: clang-ast
+        run: |
+          make CONFIG=llvm-config-14
+
+      - name: Configure and build package-max # TODO: don't duplicate the package-max configure params, but rather construct them from the other jobs?
+        run: |
+          CC=clang-14 ./auto/configure \
+                        --prefix=/tmp \
+                        --with-http_ssl_module \
+                        --with-http_realip_module \
+                        --with-http_addition_module \
+                        --with-http_sub_module \
+                        --with-http_dav_module \
+                        --with-http_flv_module \
+                        --with-http_mp4_module \
+                        --with-http_gunzip_module \
+                        --with-http_gzip_static_module \
+                        --with-http_random_index_module \
+                        --with-http_secure_link_module \
+                        --with-http_stub_status_module \
+                        --with-mail \
+                        --with-mail_ssl_module \
+                        --with-select_module \
+                        --with-poll_module \
+                        --with-http_auth_request_module \
+                        --with-http_v2_module \
+                        --with-http_slice_module \
+                        --with-stream \
+                        --with-stream_ssl_module \
+                        --with-stream_ssl_preread_module \
+                        --with-stream_realip_module \
+                        --with-threads \
+                        --with-cpp_test_module \
+                        --with-compat \
+                        --with-http_degradation_module \
+                        --with-http_v3_module \
+                        --with-http_xslt_module \
+                        --with-http_image_filter_module \
+                        --with-http_geoip_module \
+                        --with-stream_geoip_module \
+                        --with-http_perl_module \
+                        --with-debug \
+          || cat build/autoconf.err
+          make CFLAGS='-Xclang -load -Xclang ./clang-ast/ngx-ast.so -Xclang -plugin -Xclang ngx-ast -DNGX_QUIC_DEBUG_PACKETS -DNGX_QUIC_DEBUG_FRAMES -DNGX_QUIC_DEBUG_ALLOC -DNGX_QUIC_DEBUG_CRYPTO' LINK=: CC=clang-14
+
+  # FreeBSD builds with different SSL libraries
+  ssl:
+    name: ${{ matrix.os }}, ${{ matrix.arch }}, ${{ matrix.ssl }}
+    runs-on: [ "${{ matrix.os }}-${{ matrix.arch }}" ]
+    needs: check-if-allowed
+    strategy:
+      matrix:
+        os: [ freebsd-14 ]
+        arch: [ amd64 ]
+        ssl: [ 'ossl31', 'ossl32', 'bssl', 'lssl', 'qssl' ]
+      fail-fast: false
+    env:
+      quictls_ver: 3.0.14+quic
+      libressl_ver: 3.9.2
+
+    steps:
+      - name: Check out nginx sources
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+
+      - name: Check out nginx tests
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        with:
+          repository: nginx/nginx-tests
+          path: nginx-tests
+
+      - name: checkout and build ${{ matrix.ssl }} library sources
+        run: |
+          case "${{ matrix.ssl }}" in
+            bssl)
+              git clone https://boringssl.googlesource.com/boringssl ssl
+              mkdir ssl/build
+              cd ssl/build
+              cmake ..
+              make -j$(nproc)
+            ;;
+            lssl)
+              curl -OL https://cdn.openbsd.org/pub/OpenBSD/LibreSSL/libressl-${{ env.libressl_ver }}.tar.gz
+              tar -s /libressl-${{ env.libressl_ver }}/ssl/ -xzf libressl-${{ env.libressl_ver }}.tar.gz
+              cd ssl
+              ./configure --disable-shared
+              make -sj$(nproc)
+            ;;
+            ossl31)
+              git clone --depth 1 -b openssl-3.1 https://github.com/openssl/openssl ssl
+              cd ssl
+              ./config no-shared no-threads
+              make -sj$(nproc)
+            ;;
+            ossl32)
+              git clone --depth 1 -b openssl-3.2 https://github.com/openssl/openssl ssl
+              cd ssl
+              ./config no-shared no-threads
+              make -sj$(nproc)
+            ;;
+            qssl)
+              git clone --depth 1 -b openssl-${{ env.quictls_ver }} https://github.com/quictls/openssl ssl
+              cd ssl
+              ./config no-shared no-threads
+              make -sj$(nproc)
+            ;;
+          esac
+
+      - name: configure and build with ${{ matrix.ssl }}
+        run: |
+          case "${{ matrix.ssl }}" in
+            bssl)
+              LD_OPT="-L ssl/build/ssl -L ssl/build/crypto -lstdc++"
+              ;;
+            lssl)
+              LD_OPT="-L ssl/ssl/.libs -L ssl/crypto/.libs"
+              ;;
+            ossl*|qssl)
+              LD_OPT="-L ssl"
+              ;;
+          esac
+          auto/configure \
+                      --with-http_ssl_module \
+                      --with-http_v2_module \
+                      --with-http_v3_module \
+                      --with-mail \
+                      --with-mail_ssl_module \
+                      --with-stream \
+                      --with-stream_ssl_module \
+                      --with-cc-opt="-I ssl/include -DNGX_QUIC_DEBUG_PACKETS -DNGX_QUIC_DEBUG_FRAMES -DNGX_QUIC_DEBUG_ALLOC -DNGX_QUIC_DEBUG_CRYPTO" \
+                      --with-ld-opt="$LD_OPT" \
+                      --with-debug \
+          || cat objs/autoconf.err
+          make -j$(nproc) -k || make
+
+      - name: Test with ssl
+        working-directory: nginx-tests
+        run: |
+          ulimit -c unlimited
+          prove -v -j$(nproc) --state=save ../t . || prove -v --state=failed
+        env:
+          TEST_NGINX_BINARY: "${{ github.workspace }}/objs/nginx"
+          TEST_NGINX_VERBOSE: 1
+          PERL5LIB: "${{ github.workspace }}/nginx-tests/lib"
+
+  # Windows builds with MSVC and mingw64
+  #
+  # mingw32 is excluded, https://github.com/msys2/MINGW-packages/issues/2600
+  windows:
+    name: windows-2022, ${{ matrix.toolchain }}, ${{ matrix.env }}
+    runs-on: windows-2022-amd64
+    needs: check-if-allowed
+    strategy:
+      matrix:
+        include:
+          - toolchain: msvc
+            env: x64
+          - toolchain: msvc
+            env: x86
+          - toolchain: mingw64
+            env: x86_64
+      fail-fast: false
+    defaults:
+      run:
+        shell: C:\Tools\msys64\msys2_shell.cmd -defterm -no-start -where . -full-path -shell bash.exe -Eeo pipefail -x '{0}'
+    env:
+      pcre2_ver: 10.39
+      zlib_ver: 1.3.1
+      openssl3_ver: 3.0.14
+      openssl_ver: 1.1.1w
+
+    steps:
+      - name: Check out nginx sources
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+
+      - name: Check out nginx tests
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        with:
+          repository: nginx/nginx-tests
+          path: nginx-tests
+
+      - name: Set MSYSTEM
+        run: |
+          echo MSYSTEM=MINGW64 >> $GITHUB_ENV
+
+      - name: Set the defaults and set up environment
+        run: |
+          ENV_JSON=$(cat <<EOF
+          {
+          "NGINX_CONFIGURE_CMD_WIN": "auto/configure \
+                    --builddir=objs \
+                    --prefix= \
+                    --conf-path=conf/nginx.conf \
+                    --pid-path=logs/nginx.pid \
+                    --http-log-path=logs/access.log \
+                    --error-log-path=logs/error.log \
+                    --sbin-path=nginx.exe \
+                    --http-client-body-temp-path=temp/client_body_temp \
+                    --http-proxy-temp-path=temp/proxy_temp \
+                    --http-fastcgi-temp-path=temp/fastcgi_temp \
+                    --with-cc-opt=-DFD_SETSIZE=1024 \
+                    --with-pcre=objs/lib/pcre \
+                    --with-zlib=objs/lib/zlib \
+                    --with-select_module \
+                    --with-http_realip_module \
+                    --with-http_addition_module \
+                    --with-http_sub_module \
+                    --with-http_dav_module \
+                    --with-http_stub_status_module \
+                    --with-http_flv_module \
+                    --with-http_mp4_module \
+                    --with-http_gunzip_module \
+                    --with-http_gzip_static_module \
+                    --with-http_random_index_module \
+                    --with-http_secure_link_module \
+                    --with-http_ssl_module \
+                    --with-mail_ssl_module \
+                    --with-http_auth_request_module \
+                    --with-http_v2_module \
+                    --with-http_slice_module \
+                    --with-stream_ssl_module \
+                    --with-stream_ssl_preread_module \
+                    --with-stream_realip_module \
+                    --with-openssl=objs/lib/openssl",
+          "NGINX_CONFIGURE_CC_MSVC": "--with-cc=cl",
+          "NGINX_CONFIGURE_CC_MINGW": "--with-cc=/${{ matrix.toolchain }}/bin/${{ matrix.env }}-w64-mingw32-gcc.exe",
+          "NGINX_CONFIGURE_ADD_STATIC": "--with-stream --with-mail",
+          "NGINX_CONFIGURE_ADD_DYNAMIC": "--with-stream=dynamic --with-mail=dynamic",
+          "NGINX_CONFIGURE_OPENSSL_OPT": "no-asm no-tests -D_WIN32_WINNT=0x0601"
+          }
+          EOF
+          )
+
+          NGINX_CONFIGURE_CMD_WIN=$(echo $ENV_JSON | jq -r '.NGINX_CONFIGURE_CMD_WIN')
+          NGINX_CONFIGURE_CC_MSVC=$(echo $ENV_JSON | jq -r '.NGINX_CONFIGURE_CC_MSVC')
+          NGINX_CONFIGURE_CC_MINGW=$(echo $ENV_JSON | jq -r '.NGINX_CONFIGURE_CC_MINGW')
+          NGINX_CONFIGURE_ADD_STATIC=$(echo $ENV_JSON | jq -r '.NGINX_CONFIGURE_ADD_STATIC')
+          NGINX_CONFIGURE_ADD_DYNAMIC=$(echo $ENV_JSON | jq -r '.NGINX_CONFIGURE_ADD_DYNAMIC')
+          NGINX_CONFIGURE_OPENSSL_OPT=$(echo $ENV_JSON | jq -r '.NGINX_CONFIGURE_OPENSSL_OPT')
+
+          echo NGINX_CONFIGURE_CMD_WIN="$NGINX_CONFIGURE_CMD_WIN" >> $GITHUB_ENV
+          echo NGINX_CONFIGURE_CC_MSVC="$NGINX_CONFIGURE_CC_MSVC" >> $GITHUB_ENV
+          echo NGINX_CONFIGURE_CC_MINGW="$NGINX_CONFIGURE_CC_MINGW" >> $GITHUB_ENV
+          echo NGINX_CONFIGURE_ADD_STATIC="$NGINX_CONFIGURE_ADD_STATIC" >> $GITHUB_ENV
+          echo NGINX_CONFIGURE_ADD_DYNAMIC="$NGINX_CONFIGURE_ADD_DYNAMIC" >> $GITHUB_ENV
+          echo NGINX_CONFIGURE_OPENSSL_OPT="$NGINX_CONFIGURE_OPENSSL_OPT" >> $GITHUB_ENV
+
+          echo "VCVARSALL=$('C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe' -products \* -latest -property installationPath)\\VC\\Auxiliary\\Build\\vcvarsall.bat" >> $GITHUB_ENV
+          echo "VCARCH=${{ matrix.env }}" >> $GITHUB_ENV
+          echo "CL=/MP" >> $GITHUB_ENV
+
+          echo 'TEMP=C:\TEMP' >> $GITHUB_ENV
+          echo 'TMP=C:\TEMP' >> $GITHUB_ENV
+          echo 'TMPDIR=C:\TEMP' >> $GITHUB_ENV
+
+          mkdir C:/TEMP/
+          mkdir C:/tmp/
+          mkdir t
+
+      - name: Download and unpack dependencies
+        run: |
+          mkdir objs
+          mkdir objs/lib
+          curl -sLO https://github.com/PCRE2Project/pcre2/releases/download/pcre2-${{ env.pcre2_ver }}/pcre2-${{ env.pcre2_ver }}.tar.gz
+          tar -C objs/lib --transform 's/pcre2-${{ env.pcre2_ver }}/pcre/' -xzf ./pcre2-${{ env.pcre2_ver }}.tar.gz
+          echo '#include <stdint.h>' > objs/lib/pcre/src/inttypes.h
+          curl -sLO https://zlib.net/fossils/zlib-${{ env.zlib_ver }}.tar.gz
+          tar -C objs/lib --transform 's/zlib-${{ env.zlib_ver }}/zlib/' -xzf ./zlib-${{ env.zlib_ver }}.tar.gz
+          case "${{ matrix.toolchain }}" in
+            msvc)
+              curl -sLO https://github.com/openssl/openssl/releases/download/openssl-${{ env.openssl3_ver }}/openssl-${{ env.openssl3_ver }}.tar.gz
+              tar -C objs/lib --transform 's/openssl-${{ env.openssl3_ver }}/openssl/' -xzf ./openssl-${{ env.openssl3_ver }}.tar.gz
+            ;;
+            mingw*)
+              curl -sLO https://github.com/openssl/openssl/releases/download/OpenSSL_1_1_1w/openssl-${{ env.openssl_ver }}.tar.gz
+              tar -C objs/lib --transform 's/openssl-${{ env.openssl_ver }}/openssl/' -xzf ./openssl-${{ env.openssl_ver }}.tar.gz
+            ;;
+          esac
+          cp -R objs objs.deps
+
+      - name: Configure and build
+        if: matrix.toolchain == 'msvc'
+        shell: cmd
+        run: |
+          @echo on
+          call "%VCVARSALL%" %VCARCH%
+          bash.exe ^
+            %NGINX_CONFIGURE_CMD_WIN% ^
+            %NGINX_CONFIGURE_CC_MSVC% ^
+            %NGINX_CONFIGURE_ADD_STATIC% ^
+            --with-openssl-opt="%NGINX_CONFIGURE_OPENSSL_OPT%"
+          nmake -f objs/Makefile
+
+      - name: Configure and build
+        if: startsWith( matrix.toolchain, 'mingw')
+        run: |
+          $NGINX_CONFIGURE_CMD_WIN \
+          $NGINX_CONFIGURE_CC_MINGW \
+          $NGINX_CONFIGURE_ADD_STATIC \
+          --with-openssl-opt="$NGINX_CONFIGURE_OPENSSL_OPT"
+          make -j$(nproc) -k || make
+
+      - name: Run tests
+        shell: cmd
+        working-directory: nginx-tests
+        run: |
+          prove -v --state=save ../t . || prove -v --state=failed
+        env:
+          TEST_NGINX_BINARY: "${{ github.workspace }}\\objs\\nginx.exe"
+          TEST_NGINX_VERBOSE: 1
+          PERL5LIB: "${{ github.workspace }}\\nginx-tests\\lib"
+
+      - name: Cleanup
+        run: make clean
+
+      - name: Restore dependencies
+        run: |
+          cp -R objs.deps objs
+
+      - name: Configure and build with debug
+        if: matrix.toolchain == 'msvc'
+        shell: cmd
+        run: |
+          @echo on
+          call "%VCVARSALL%" %VCARCH%
+          bash.exe ^
+            %NGINX_CONFIGURE_CMD_WIN% ^
+            %NGINX_CONFIGURE_CC_MSVC% ^
+            %NGINX_CONFIGURE_ADD_STATIC% ^
+            --with-openssl-opt="%NGINX_CONFIGURE_OPENSSL_OPT%" ^
+            --with-debug
+          nmake -f objs/Makefile
+
+      - name: Configure and build with debug
+        if: startsWith( matrix.toolchain, 'mingw')
+        run: |
+          $NGINX_CONFIGURE_CMD_WIN \
+          $NGINX_CONFIGURE_CC_MINGW \
+          $NGINX_CONFIGURE_ADD_STATIC \
+          --with-openssl-opt="$NGINX_CONFIGURE_OPENSSL_OPT" \
+          --with-debug
+          make -j$(nproc) -k || make
+
+      - name: Run tests with debug
+        shell: cmd
+        working-directory: nginx-tests
+        run: |
+          prove -v --state=save ../t . || prove -v --state=failed
+        env:
+          TEST_NGINX_BINARY: "${{ github.workspace }}\\objs\\nginx.exe"
+          TEST_NGINX_VERBOSE: 1
+          PERL5LIB: "${{ github.workspace }}\\nginx-tests\\lib"
+
+      - name: Cleanup
+        run: make clean
+
+      - name: Restore dependencies
+        if: startsWith( matrix.toolchain, 'mingw')
+        run: |
+          cp -R objs.deps objs
+
+      - name: Configure and build dynamic with debug
+        if: startsWith( matrix.toolchain, 'mingw')
+        run: |
+          $NGINX_CONFIGURE_CMD_WIN \
+          $NGINX_CONFIGURE_CC_MINGW \
+          $NGINX_CONFIGURE_ADD_DYNAMIC \
+          --with-openssl-opt="$NGINX_CONFIGURE_OPENSSL_OPT" \
+          --with-debug
+          make -j$(nproc) -k || make
+
+      - name: Run tests dynamic debug
+        if: startsWith( matrix.toolchain, 'mingw')
+        shell: cmd
+        working-directory: nginx-tests
+        run: |
+          prove -v --state=save ../t . || prove -v --state=failed
+        env:
+          TEST_NGINX_BINARY: "${{ github.workspace }}\\objs\\nginx.exe"
+          TEST_NGINX_VERBOSE: 1
+          PERL5LIB: "${{ github.workspace }}\\nginx-tests\\lib"
