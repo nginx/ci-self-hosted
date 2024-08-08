@@ -251,6 +251,7 @@ jobs:
                 NGINX_CONFIGURE_ADD_COMMON=${NGINX_CONFIGURE_ADD_COMMON%%--with-http_v3_module}
                 ;;
             esac
+
             case "${{ matrix.subarch }}" in
               x86)
                 CC_OPT_ADD="-m32"
@@ -296,6 +297,12 @@ jobs:
                 ;;
             esac
 
+            # a directory that might have newly added tests in -try scenario
+            mkdir -p t/
+
+            # enable coredumps
+            ulimit -c unlimited
+
       - name: Check out nginx tests
         run: |
           git clone https://github.com/nginx/nginx-tests
@@ -337,10 +344,9 @@ jobs:
           make -j$(nproc) -k || make
 
       - name: Test package-max
+        working-directory: nginx-tests
         run: |
-          cd nginx-tests
-          ulimit -c unlimited
-          prove -v -j$(nproc) --state=save . || prove -v --state=failed
+          prove -v -j$(nproc) --state=save ../t . || prove -v --state=failed
           cd .. && make clean
         env:
           TEST_NGINX_BINARY: "${{ github.workspace }}/objs/nginx"
@@ -362,10 +368,9 @@ jobs:
           make -j$(nproc) -k || make
 
       - name: Test package-max debug
+        working-directory: nginx-tests
         run: |
-          cd nginx-tests
-          ulimit -c unlimited
-          prove -v -j$(nproc) --state=save . || prove -v --state=failed
+          prove -v -j$(nproc) --state=save ../t . || prove -v --state=failed
           cd .. && make clean
         env:
           TEST_NGINX_BINARY: "${{ github.workspace }}/objs/nginx"
@@ -396,10 +401,9 @@ jobs:
           make -j$(nproc) -k || make
 
       - name: Test dynamic
+        working-directory: nginx-tests
         run: |
-          cd nginx-tests
-          ulimit -c unlimited
-          prove -v -j$(nproc) --state=save . || prove -v --state=failed
+          prove -v -j$(nproc) --state=save ../t . || prove -v --state=failed
           cd .. && make clean
         env:
           TEST_NGINX_BINARY: "${{ github.workspace }}/objs/nginx"
@@ -433,10 +437,9 @@ jobs:
           make -j$(nproc) -k || make
 
       - name: Test dynamic debug
+        working-directory: nginx-tests
         run: |
-          cd nginx-tests
-          ulimit -c unlimited
-          prove -v -j$(nproc) --state=save . || prove -v --state=failed
+          prove -v -j$(nproc) --state=save ../t . || prove -v --state=failed
           cd .. && make clean
         env:
           TEST_NGINX_BINARY: "${{ github.workspace }}/objs/nginx"
@@ -459,10 +462,9 @@ jobs:
           make -j$(nproc) -k || make
 
       - name: Test aio
+        working-directory: nginx-tests
         run: |
-          cd nginx-tests
-          ulimit -c unlimited
-          prove -v -j$(nproc) --state=save . || prove -v --state=failed
+          prove -v -j$(nproc) --state=save ../t . || prove -v --state=failed
         env:
           TEST_NGINX_BINARY: "${{ github.workspace }}/objs/nginx"
           TEST_NGINX_VERBOSE: 1
@@ -471,10 +473,9 @@ jobs:
           TEST_NGINX_GLOBALS_HTTP: "${{ env.TEST_NGINX_GLOBALS_HTTP_AIO }}"
 
       - name: Test aio-write
+        working-directory: nginx-tests
         run: |
-          cd nginx-tests
-          ulimit -c unlimited
-          prove -v -j$(nproc) --state=save . || prove -v --state=failed
+          prove -v -j$(nproc) --state=save ../t . || prove -v --state=failed
           cd .. && make clean
         env:
           TEST_NGINX_BINARY: "${{ github.workspace }}/objs/nginx"
@@ -498,10 +499,9 @@ jobs:
           make -j$(nproc) -k || make
 
       - name: Test aio debug
+        working-directory: nginx-tests
         run: |
-          cd nginx-tests
-          ulimit -c unlimited
-          prove -v -j$(nproc) --state=save . || prove -v --state=failed
+          prove -v -j$(nproc) --state=save ../t . || prove -v --state=failed
         env:
           TEST_NGINX_BINARY: "${{ github.workspace }}/objs/nginx"
           TEST_NGINX_VERBOSE: 1
@@ -510,10 +510,9 @@ jobs:
           TEST_NGINX_GLOBALS_HTTP: "${{ env.TEST_NGINX_GLOBALS_HTTP_AIO }}"
 
       - name: Test aio-write debug
+        working-directory: nginx-tests
         run: |
-          cd nginx-tests
-          ulimit -c unlimited
-          prove -v -j$(nproc) --state=save . || prove -v --state=failed
+          prove -v -j$(nproc) --state=save ../t . || prove -v --state=failed
           cd .. && make clean
         env:
           TEST_NGINX_BINARY: "${{ github.workspace }}/objs/nginx"
@@ -545,7 +544,6 @@ jobs:
       - name: Test ndb
         if: ${{ matrix.subarch == '' }}
         run: |
-          ulimit -c unlimited
           prove -v -j$(nproc) --state=save ./ndb/t || prove -v --state=failed
           make clean
         env:
@@ -571,7 +569,7 @@ jobs:
           path: clang-ast
 
       - name: Build AST
-        working-directory: nginx-tests
+        working-directory: clang-ast
         run: |
           make CONFIG=llvm-config-14
 
@@ -706,11 +704,10 @@ jobs:
           make -j$(nproc) -k || make
 
       - name: Test with ssl
+        working-directory: nginx-tests
         run: |
-          cd nginx-tests
           ulimit -c unlimited
-          prove -v -j$(nproc) --state=save . || prove -v --state=failed
-          cd .. && make clean
+          prove -v -j$(nproc) --state=save ../t . || prove -v --state=failed
         env:
           TEST_NGINX_BINARY: "${{ github.workspace }}/objs/nginx"
           TEST_NGINX_VERBOSE: 1
@@ -877,7 +874,6 @@ jobs:
         shell: cmd
         working-directory: nginx-tests
         run: |
-          @echo on
           prove -v --state=save ../t . || prove -v --state=failed
         env:
           TEST_NGINX_BINARY: "${{ github.workspace }}\\objs\\nginx.exe"
