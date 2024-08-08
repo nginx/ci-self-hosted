@@ -320,7 +320,9 @@ jobs:
             --with-ld-opt="$NGINX_CONFIGURE_ADD_AUX_LD_OPT" \
           || cat objs/autoconf.err
           make -j$(nproc) -k || make
-          make clean
+
+      - name: Cleanup
+        run: make clean
 
       - name: Configure and build min
         run: |
@@ -329,7 +331,9 @@ jobs:
             --with-ld-opt="$NGINX_CONFIGURE_ADD_AUX_LD_OPT" \
           || cat objs/autoconf.err
           make -j$(nproc) -k || make
-          make clean
+
+      - name: Cleanup
+        run: make clean
 
       - name: Configure and build package-max
         run: |
@@ -347,12 +351,14 @@ jobs:
         working-directory: nginx-tests
         run: |
           prove -v -j$(nproc) --state=save ../t . || prove -v --state=failed
-          cd .. && make clean
         env:
           TEST_NGINX_BINARY: "${{ github.workspace }}/objs/nginx"
           TEST_NGINX_VERBOSE: 1
           PERL5LIB: "${{ github.workspace }}/nginx-tests/lib"
           ASAN_OPTIONS: "detect_odr_violation=0:report_globals=0:detect_leaks=0"
+
+      - name: Cleanup
+        run: make clean
 
       - name: Configure and build package-max debug
         run: |
@@ -371,12 +377,14 @@ jobs:
         working-directory: nginx-tests
         run: |
           prove -v -j$(nproc) --state=save ../t . || prove -v --state=failed
-          cd .. && make clean
         env:
           TEST_NGINX_BINARY: "${{ github.workspace }}/objs/nginx"
           TEST_NGINX_VERBOSE: 1
           PERL5LIB: "${{ github.workspace }}/nginx-tests/lib"
           ASAN_OPTIONS: "detect_odr_violation=0:report_globals=0:detect_leaks=0"
+
+      - name: Cleanup
+        run: make clean
 
       - name: Configure and build modules
         run: |
@@ -404,13 +412,15 @@ jobs:
         working-directory: nginx-tests
         run: |
           prove -v -j$(nproc) --state=save ../t . || prove -v --state=failed
-          cd .. && make clean
         env:
           TEST_NGINX_BINARY: "${{ github.workspace }}/objs/nginx"
           TEST_NGINX_GLOBALS: "load_module ${{ github.workspace }}/objs/ngx_http_image_filter_module.so;load_module ${{ github.workspace }}/objs/ngx_http_perl_module.so;load_module ${{ github.workspace }}/objs/ngx_http_xslt_filter_module.so;"
           TEST_NGINX_VERBOSE: 1
           PERL5LIB: "${{ github.workspace }}/nginx-tests/lib"
           ASAN_OPTIONS: "detect_odr_violation=0:report_globals=0:detect_leaks=0"
+
+      - name: Cleanup
+        run: make clean
 
       - name: Configure and build modules debug
         run: |
@@ -440,13 +450,15 @@ jobs:
         working-directory: nginx-tests
         run: |
           prove -v -j$(nproc) --state=save ../t . || prove -v --state=failed
-          cd .. && make clean
         env:
           TEST_NGINX_BINARY: "${{ github.workspace }}/objs/nginx"
           TEST_NGINX_GLOBALS: "load_module ${{ github.workspace }}/objs/ngx_http_image_filter_module.so;load_module /${{ github.workspace }}/objs/ngx_http_perl_module.so;load_module /${{ github.workspace }}/objs/ngx_http_xslt_filter_module.so;"
           TEST_NGINX_VERBOSE: 1
           PERL5LIB: "${{ github.workspace }}/nginx-tests/lib"
           ASAN_OPTIONS: "detect_odr_violation=0:report_globals=0:detect_leaks=0"
+
+      - name: Cleanup
+        run: make clean
 
       - name: Configure and build aio
         run: |
@@ -476,13 +488,15 @@ jobs:
         working-directory: nginx-tests
         run: |
           prove -v -j$(nproc) --state=save ../t . || prove -v --state=failed
-          cd .. && make clean
         env:
           TEST_NGINX_BINARY: "${{ github.workspace }}/objs/nginx"
           TEST_NGINX_VERBOSE: 1
           PERL5LIB: "${{ github.workspace }}/nginx-tests/lib"
           ASAN_OPTIONS: "detect_odr_violation=0:report_globals=0:detect_leaks=0"
           TEST_NGINX_GLOBALS_HTTP: "aio threads; aio_write on;"
+
+      - name: Cleanup
+        run: make clean
 
       - name: Configure and build aio debug
         run: |
@@ -513,13 +527,15 @@ jobs:
         working-directory: nginx-tests
         run: |
           prove -v -j$(nproc) --state=save ../t . || prove -v --state=failed
-          cd .. && make clean
         env:
           TEST_NGINX_BINARY: "${{ github.workspace }}/objs/nginx"
           TEST_NGINX_VERBOSE: 1
           PERL5LIB: "${{ github.workspace }}/nginx-tests/lib"
           ASAN_OPTIONS: "detect_odr_violation=0:report_globals=0:detect_leaks=0"
           TEST_NGINX_GLOBALS_HTTP: "aio threads; aio_write on;"
+
+      - name: Cleanup
+        run: make clean
 
       - name: Check out nginx delay body filter
         if: ${{ matrix.subarch == '' }}
@@ -545,7 +561,6 @@ jobs:
         if: ${{ matrix.subarch == '' }}
         run: |
           prove -v -j$(nproc) --state=save ./ndb/t || prove -v --state=failed
-          make clean
         env:
           TEST_NGINX_BINARY: "${{ github.workspace }}/objs/nginx"
           TEST_NGINX_VERBOSE: 1
@@ -881,8 +896,7 @@ jobs:
           PERL5LIB: "${{ github.workspace }}\\nginx-tests\\lib"
 
       - name: Cleanup
-        run: |
-          make clean
+        run: make clean
 
       - name: Restore dependencies
         run: |
@@ -923,8 +937,7 @@ jobs:
           PERL5LIB: "${{ github.workspace }}\\nginx-tests\\lib"
 
       - name: Cleanup
-        run: |
-          make clean
+        run: make clean
 
       - name: Restore dependencies
         if: startsWith( matrix.toolchain, 'mingw')
