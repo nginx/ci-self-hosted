@@ -288,15 +288,6 @@ jobs:
             echo NGINX_CONFIGURE_ADD_AUX_LD_OPT="$NGINX_CONFIGURE_ADD_AUX_LD_OPT" >> $GITHUB_ENV
             echo TEST_NGINX_GLOBALS_HTTP_AIO="$TEST_NGINX_GLOBALS_HTTP_AIO" >> $GITHUB_ENV
 
-            case "${{ matrix.os }}" in
-              freebsd-*)
-                echo MAKE_UTILITY=gmake >> $GITHUB_ENV
-                ;;
-              *)
-                echo MAKE_UTILITY=make >> $GITHUB_ENV
-                ;;
-            esac
-
             # a directory that might have newly added tests in -try scenario
             mkdir -p t/
 
