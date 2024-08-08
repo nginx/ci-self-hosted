@@ -38,8 +38,8 @@ jobs:
           fi
           exit 0
 
-  test:
-    name: ${{ matrix.os }}, ${{ matrix.subarch != '' && matrix.subarch || matrix.arch }} ${{ matrix.asan != '' && matrix.asan || '' }}
+  generic:
+    name: ${{ matrix.os }}, ${{ matrix.subarch != '' && matrix.subarch || matrix.arch }} ${{ matrix.sanitizer != '' && matrix.sanitizer || '' }}
     runs-on: [ "${{ matrix.os }}-${{ matrix.arch }}" ]
     needs: check-if-allowed
     strategy:
@@ -47,7 +47,7 @@ jobs:
         os: [ alpine-3.19, amazonlinux-2, amazonlinux-2023, debian-11, debian-12, freebsd-14, rhel-8, rhel-9, sles-12, ubuntu-20.04, ubuntu-22.04, ubuntu-24.04 ]
         arch: [ amd64, arm64 ]
         subarch: [ '' ]
-        asan: [ '' ]
+        sanitizer: [ '' ]
         exclude:
           - os: freebsd-14 # we don't have an arm64 builder for freebsd-14 yet
             arch: arm64
@@ -59,15 +59,15 @@ jobs:
             subarch: x86
           - os: ubuntu-22.04
             arch: amd64
-            asan: asan
+            sanitizer: asan
       fail-fast: false
 
     steps:
-      - name: checkout v3
+      - name: Check out nginx sources
         uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
         if: ${{ matrix.os == 'amazonlinux-2' || matrix.os == 'sles-12' }}
 
-      - name: checkout v4
+      - name: Check out nginx sources
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         if: ${{ matrix.os != 'amazonlinux-2' && matrix.os != 'sles-12' }}
 
@@ -263,7 +263,7 @@ jobs:
               ;;
             esac
 
-            case "${{ matrix.asan }}" in
+            case "${{ matrix.sanitizer }}" in
               asan)
                 CC_OPT="-O1 -g -fsanitize=address -fno-omit-frame-pointer -DNJS_DEBUG_MEMORY -DNGX_DEBUG_PALLOC -DNGX_DEBUG_MALLOC -DNGX_QUIC_DEBUG_PACKETS -DNGX_QUIC_DEBUG_FRAMES -DNGX_QUIC_DEBUG_ALLOC -DNGX_QUIC_DEBUG_CRYPTO"
                 LD_OPT="-fsanitize=address -lcrypt"
@@ -301,7 +301,7 @@ jobs:
           git clone https://github.com/nginx/nginx-tests
 
       - name: Fix kernel mmap rnd bits
-        if: matrix.asan == 'asan'
+        if: matrix.sanitizer == 'asan'
         # Asan in ubuntu 22.04 is incompatible with high-entropy ASLR in much
         # newer kernels using leading to random crashes: https://reviews.llvm.org/D148280
         run: sudo sysctl vm.mmap_rnd_bits=28
@@ -554,27 +554,69 @@ jobs:
           PERL5LIB: "${{ github.workspace }}/nginx-tests/lib"
           ASAN_OPTIONS: "detect_odr_violation=0:report_globals=0:detect_leaks=0"
 
+  # AST build
   print:
     name: debian-12, amd64, print
     runs-on: [ debian-12-amd64 ]
     needs: check-if-allowed
 
     steps:
-      - name: checkout v4
+      - name: Check out nginx sources
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
       - name: Checkout and build clang-ast
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        with:
+          repository: nginx/clang-ast
+          path: clang-ast
+
+      - name: Build AST
+        working-directory: nginx-tests
         run: |
-          git clone https://github.com/nginx/clang-ast
-          cd clang-ast
           make CONFIG=llvm-config-14
 
       - name: Configure and build package-max # TODO: don't duplicate the package-max configure params, but rather construct them from the other jobs?
         run: |
-          CC=clang-14 ./auto/configure --prefix=/tmp --with-http_ssl_module --with-http_realip_module --with-http_addition_module --with-http_sub_module --with-http_dav_module --with-http_flv_module --with-http_mp4_module --with-http_gunzip_module --with-http_gzip_static_module --with-http_random_index_module --with-http_secure_link_module --with-http_stub_status_module --with-mail --with-mail_ssl_module --with-select_module --with-poll_module --with-http_auth_request_module --with-http_v2_module --with-http_slice_module --with-stream --with-stream_ssl_module --with-stream_ssl_preread_module --with-stream_realip_module --with-threads --with-cpp_test_module --with-compat --with-http_degradation_module --with-http_v3_module --with-http_xslt_module --with-http_image_filter_module --with-http_geoip_module --with-stream_geoip_module --with-http_perl_module --with-debug \
+          CC=clang-14 ./auto/configure \
+                        --prefix=/tmp \
+                        --with-http_ssl_module \
+                        --with-http_realip_module \
+                        --with-http_addition_module \
+                        --with-http_sub_module \
+                        --with-http_dav_module \
+                        --with-http_flv_module \
+                        --with-http_mp4_module \
+                        --with-http_gunzip_module \
+                        --with-http_gzip_static_module \
+                        --with-http_random_index_module \
+                        --with-http_secure_link_module \
+                        --with-http_stub_status_module \
+                        --with-mail \
+                        --with-mail_ssl_module \
+                        --with-select_module \
+                        --with-poll_module \
+                        --with-http_auth_request_module \
+                        --with-http_v2_module \
+                        --with-http_slice_module \
+                        --with-stream \
+                        --with-stream_ssl_module \
+                        --with-stream_ssl_preread_module \
+                        --with-stream_realip_module \
+                        --with-threads \
+                        --with-cpp_test_module \
+                        --with-compat \
+                        --with-http_degradation_module \
+                        --with-http_v3_module \
+                        --with-http_xslt_module \
+                        --with-http_image_filter_module \
+                        --with-http_geoip_module \
+                        --with-stream_geoip_module \
+                        --with-http_perl_module \
+                        --with-debug \
           || cat build/autoconf.err
           make CFLAGS='-Xclang -load -Xclang ./clang-ast/ngx-ast.so -Xclang -plugin -Xclang ngx-ast -DNGX_QUIC_DEBUG_PACKETS -DNGX_QUIC_DEBUG_FRAMES -DNGX_QUIC_DEBUG_ALLOC -DNGX_QUIC_DEBUG_CRYPTO' LINK=: CC=clang-14
 
+  # FreeBSD builds with different SSL libraries
   ssl:
     name: ${{ matrix.os }}, ${{ matrix.arch }}, ${{ matrix.ssl }}
     runs-on: [ "${{ matrix.os }}-${{ matrix.arch }}" ]
@@ -590,22 +632,22 @@ jobs:
       libressl_ver: 3.8.2
 
     steps:
-      - name: checkout v4
+      - name: Check out nginx sources
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
       - name: Check out nginx tests
-        run: |
-          git clone https://github.com/nginx/nginx-tests
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        with:
+          repository: nginx/nginx-tests
+          path: nginx-tests
 
-      - name: checkout about build ${{ matrix.ssl }} library sources
+      - name: checkout and build ${{ matrix.ssl }} library sources
         run: |
           case "${{ matrix.ssl }}" in
             bssl)
               git clone https://boringssl.googlesource.com/boringssl ssl
               mkdir ssl/build
               cd ssl/build
-              # TODO: fix the runner to have cmake
-              sudo pkg install -y cmake
               cmake ..
               make -j$(nproc)
             ;;
@@ -674,6 +716,9 @@ jobs:
           TEST_NGINX_VERBOSE: 1
           PERL5LIB: "${{ github.workspace }}/nginx-tests/lib"
 
+  # Windows builds with MSVC and mingw64
+  #
+  # mingw32 is excluded, https://github.com/msys2/MINGW-packages/issues/2600
   windows:
     name: windows-2022, ${{ matrix.toolchain }}, ${{ matrix.env }}
     runs-on: windows-2022-amd64
