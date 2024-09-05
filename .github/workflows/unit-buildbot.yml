@@ -248,11 +248,12 @@ jobs:
           $MAKE_UTILITY -j$(nproc) -k java
 
       - name: Configure and build unit-wasmtime
+        if: ${{ ! matrix.os == 'amazonlinux-2' || ! matrix.os == 'debian-11' || ! matrix.os == 'ubuntu-20.04' }}
         run: |
           $MAKE_UTILITY -C pkg/contrib .wasmtime
           ./configure wasm \
-                    --include-path=pkg/contrib/wasmtime/crates/c-api/include \
-                    --lib-path=pkg/contrib/wasmtime/target/release \
+                    --include-path=pkg/contrib/wasmtime/artifacts/include \
+                    --lib-path=pkg/contrib/wasmtime/artifacts/lib \
           || cat build/autoconf.err
           $MAKE_UTILITY -j$(nproc) -k wasm
           rm -f build/lib/unit/modules/wasm.unit.so
