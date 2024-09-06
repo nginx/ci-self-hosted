@@ -248,7 +248,7 @@ jobs:
           $MAKE_UTILITY -j$(nproc) -k java
 
       - name: Configure and build unit-wasmtime
-        if: ${{ ! matrix.os == 'amazonlinux-2' || ! matrix.os == 'debian-11' || ! matrix.os == 'ubuntu-20.04' }}
+        if: ${{ matrix.os != 'amazonlinux-2' && matrix.os != 'debian-11' && matrix.os != 'ubuntu-20.04' }}
         run: |
           $MAKE_UTILITY -C pkg/contrib .wasmtime
           ./configure wasm \
