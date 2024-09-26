@@ -687,6 +687,7 @@ jobs:
 
       - name: configure and build with ${{ matrix.ssl }}
         run: |
+          mkdir -p t/
           case "${{ matrix.ssl }}" in
             bssl)
               LD_OPT="-L ssl/build/ssl -L ssl/build/crypto -lstdc++"
@@ -834,7 +835,7 @@ jobs:
 
           mkdir C:/TEMP/
           mkdir C:/tmp/
-          mkdir t
+          mkdir -p t/
 
       - name: Download and unpack dependencies
         run: |
