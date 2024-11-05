@@ -44,14 +44,12 @@ jobs:
     needs: check-if-allowed
     strategy:
       matrix:
-        os: [ alpine-3.19, alpine-3.20, amazonlinux-2, amazonlinux-2023, debian-11, debian-12, freebsd-14, rhel-8, rhel-9, sles-12, ubuntu-20.04, ubuntu-22.04, ubuntu-24.04 ]
+        os: [ alpine-3.19, alpine-3.20, amazonlinux-2, amazonlinux-2023, debian-11, debian-12, freebsd-14, rhel-8, rhel-9, ubuntu-20.04, ubuntu-22.04, ubuntu-24.04 ]
         arch: [ amd64, arm64 ]
         subarch: [ '' ]
         sanitizer: [ '' ]
         exclude:
           - os: freebsd-14 # we don't have an arm64 builder for freebsd-14 yet
-            arch: arm64
-          - os: sles-12 # we don't have an arm64 for SLES 12
             arch: arm64
         include:
           - os: debian-12
@@ -65,11 +63,11 @@ jobs:
     steps:
       - name: Check out nginx sources
         uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
-        if: ${{ matrix.os == 'amazonlinux-2' || matrix.os == 'sles-12' }}
+        if: ${{ matrix.os == 'amazonlinux-2' }}
 
       - name: Check out nginx sources
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-        if: ${{ matrix.os != 'amazonlinux-2' && matrix.os != 'sles-12' }}
+        if: ${{ matrix.os != 'amazonlinux-2' }}
 
       - name: Set the defaults and set up environment
         run: |
@@ -108,10 +106,6 @@ jobs:
               "LD_OPT": "-Wl,-z,relro -Wl,-z,now"
             },
             "rhel-9": {
-              "CC_OPT": "$(rpm --eval %{optflags}) $(pcre2-config --cflags) -fPIC",
-              "LD_OPT": "-Wl,-z,relro -Wl,-z,now"
-            },
-            "sles-12": {
               "CC_OPT": "$(rpm --eval %{optflags}) $(pcre2-config --cflags) -fPIC",
               "LD_OPT": "-Wl,-z,relro -Wl,-z,now"
             },
@@ -250,9 +244,6 @@ jobs:
               rhel-*)
                 NGINX_CONFIGURE_ADD_GEOIP=""
                 NGINX_CONFIGURE_ADD_GEOIP_MODULES=""
-                ;;
-              sles-*)
-                NGINX_CONFIGURE_ADD_COMMON=${NGINX_CONFIGURE_ADD_COMMON%%--with-http_v3_module}
                 ;;
             esac
 
