@@ -213,6 +213,15 @@ jobs:
           cd quickjs
           CFLAGS="$CC_OPT -fPIC" LDFLAGS=$LD_OPT $MAKE_UTILITY -j$(nproc) libquickjs.a
 
+      - name: Check out and build quickjs-ng
+        run: |
+          git clone https://github.com/quickjs-ng/quickjs quickjs-ng
+          cd quickjs-ng
+          git checkout v0.8.0
+          if command -v cmake3>/dev/null; then CMAKE=cmake3; else CMAKE=cmake; fi
+          CFLAGS="$CC_OPT -fPIC" LDFLAGS=$LD_OPT $CMAKE -B build
+          $CMAKE --build build --target qjs -j $(nproc)
+
       - name: Configure and make njs
         run: |
           ./configure \
@@ -236,6 +245,20 @@ jobs:
           $MAKE_UTILITY -j$(nproc)
 
       - name: Test njs with quickjs
+        run: |
+          $MAKE_UTILITY test
+          $MAKE_UTILITY clean
+
+      - name: Configure and make njs with quickjs-ng
+        run: |
+          ./configure \
+                    --with-quickjs \
+                    --cc-opt="$CC_OPT -Iquickjs-ng" \
+                    --ld-opt="$LD_OPT -Lquickjs-ng/build" \
+          || cat build/autoconf.err
+          $MAKE_UTILITY -j$(nproc)
+
+      - name: Test njs with quickjs-ng
         run: |
           $MAKE_UTILITY test
           $MAKE_UTILITY clean
@@ -319,13 +342,44 @@ jobs:
           TEST_NGINX_GLOBALS_STREAM: "js_engine qjs;"
           TEST_NGINX_VERBOSE: 1
 
+      - name: Configure and build nginx and njs modules with quickjs-ng, dynamic modules
+        run: |
+          cd nginx-source
+          $NGINX_CONFIGURE_CMD \
+                    --with-cc-opt="$CC_OPT -I${{ github.workspace }}/quickjs-ng" \
+                    --with-ld-opt="$LD_OPT -L${{ github.workspace }}/quickjs-ng/build" \
+                    --add-dynamic-module=../nginx \
+          || cat objs/autoconf.err
+          $MAKE_UTILITY -j$(nproc) modules
+          $MAKE_UTILITY -j$(nproc)
+
+      - name: Test njs modules, quickjs-ng, dynamic modules
+        run: |
+          ulimit -c unlimited
+          prove -v -j$(nproc) -Inginx-tests/lib --state=save nginx/t . || prove -v -Inginx-tests/lib --state=failed
+        env:
+          TEST_NGINX_BINARY: "${{ github.workspace }}/nginx-source/objs/nginx"
+          TEST_NGINX_GLOBALS: "load_module ${{ github.workspace }}/nginx-source/objs/ngx_http_js_module.so; load_module ${{ github.workspace }}/nginx-source/objs/ngx_stream_js_module.so;"
+          TEST_NGINX_VERBOSE: 1
+
+      - name: Test njs modules (js_engine qjs), quickjs-ng, dynamic modules
+        run: |
+          ulimit -c unlimited
+          prove -v -j$(nproc) -Inginx-tests/lib --state=save nginx/t . || prove -v -Inginx-tests/lib --state=failed
+        env:
+          TEST_NGINX_BINARY: "${{ github.workspace }}/nginx-source/objs/nginx"
+          TEST_NGINX_GLOBALS: "load_module ${{ github.workspace }}/nginx-source/objs/ngx_stream_js_module.so; load_module ${{ github.workspace }}/nginx-source/objs/ngx_http_js_module.so;"
+          TEST_NGINX_GLOBALS_HTTP: "js_engine qjs;"
+          TEST_NGINX_GLOBALS_STREAM: "js_engine qjs;"
+          TEST_NGINX_VERBOSE: 1
+
   asan:
     name: ubuntu-22.04, amd64, asan, ${{ matrix.backend }}
     runs-on: [ ubuntu-22.04-amd64 ]
     needs: check-if-allowed
     strategy:
       matrix:
-        backend: [ njs, quickjs ]
+        backend: [ njs, quickjs, quickjs-ng ]
       fail-fast: false
     env:
       NGINX_CONFIGURE_CMD: "auto/configure --prefix=/tmp --with-http_ssl_module --with-http_realip_module --with-http_addition_module --with-http_sub_module --with-http_dav_module --with-http_flv_module --with-http_mp4_module --with-http_gunzip_module --with-http_gzip_static_module --with-http_random_index_module --with-http_secure_link_module --with-http_stub_status_module --with-mail --with-mail_ssl_module --with-select_module --with-poll_module --with-http_auth_request_module --with-http_v2_module --with-http_slice_module --with-stream --with-stream_ssl_module --with-stream_ssl_preread_module --with-stream_realip_module --with-threads --with-cpp_test_module --with-compat --with-http_degradation_module --with-http_v3_module --with-http_xslt_module --with-http_image_filter_module --with-http_geoip_module --with-stream_geoip_module --with-http_perl_module"
@@ -349,6 +403,15 @@ jobs:
           git clone https://github.com/bellard/quickjs
           cd quickjs
           CFLAGS="$CC_OPT -fPIC" make -j$(nproc)
+
+      - name: Check out and build quickjs-ng
+        if: matrix.backend == 'quickjs-ng'
+        run: |
+          git clone https://github.com/quickjs-ng/quickjs quickjs-ng
+          cd quickjs-ng
+          git checkout v0.8.0
+          CFLAGS="$CC_OPT -fPIC" LDFLAGS=$LD_OPT cmake -B build
+          cmake --build build --target qjs -j $(nproc)
 
       - name: Fix kernel mmap rnd bits
         # Asan in ubuntu 22.04 is incompatible with high-entropy ASLR in much
@@ -377,6 +440,18 @@ jobs:
                     --with-quickjs \
                     --cc-opt="-Iquickjs" \
                     --ld-opt="-Lquickjs" \
+          || cat build/autoconf.err
+          make -j$(nproc)
+        env:
+          CFLAGS: "-O1 -g -fsanitize=address -fno-omit-frame-pointer -DNJS_DEBUG_MEMORY"
+
+      - name: Configure and make njs with quickjs-ng
+        if: matrix.backend == 'quickjs-ng'
+        run: |
+          ./configure \
+                    --with-quickjs \
+                    --cc-opt="-Iquickjs-ng" \
+                    --ld-opt="-Lquickjs-ng/build" \
           || cat build/autoconf.err
           make -j$(nproc)
         env:
@@ -425,8 +500,19 @@ jobs:
           || cat objs/autoconf.err
           make -j$(nproc)
 
+      - name: Configure and build nginx and njs modules with quickjs-ng, static modules
+        if: matrix.backend == 'quickjs-ng'
+        run: |
+          cd nginx-source
+          $NGINX_CONFIGURE_CMD \
+                    --with-cc-opt="$CC_OPT -I${{ github.workspace }}/quickjs-ng -fsanitize=address" \
+                    --with-ld-opt="$LD_OPT -L${{ github.workspace }}/quickjs-ng/build -fsanitize=address" \
+                    --add-module=../nginx \
+          || cat objs/autoconf.err
+          make -j$(nproc)
+
       - name: Test njs modules, static modules
-        if: matrix.backend == 'quickjs'
+        if: matrix.backend == 'quickjs' || matrix.backend == 'quickjs-ng'
         run: |
           ulimit -c unlimited
           prove -v -j$(nproc) -Inginx-tests/lib --state=save nginx/t . || prove -v -Inginx-tests/lib --state=failed
@@ -437,7 +523,7 @@ jobs:
           LSAN_OPTIONS: "suppressions=${{ github.workspace }}/lsan_suppressions.txt"
 
       - name: Test njs modules (js_engine qjs), static modules
-        if: matrix.backend == 'quickjs'
+        if: matrix.backend == 'quickjs' || matrix.backend == 'quickjs-ng'
         run: |
           ulimit -c unlimited
           prove -v -j$(nproc) -Inginx-tests/lib --state=save nginx/t . || prove -v -Inginx-tests/lib --state=failed
@@ -461,8 +547,20 @@ jobs:
           make -j$(nproc) modules
           make -j$(nproc)
 
+      - name: Configure and build nginx and njs modules with quickjs-ng, dynamic modules
+        if: matrix.backend == 'quickjs-ng'
+        run: |
+          cd nginx-source
+          $NGINX_CONFIGURE_CMD \
+                    --with-debug --with-cc-opt="$CC_OPT -I${{ github.workspace }}/quickjs-ng -fsanitize=address" \
+                    --with-ld-opt="$LD_OPT -L${{ github.workspace }}/quickjs-ng/build -fsanitize=address" \
+                    --add-dynamic-module=../nginx \
+          || cat objs/autoconf.err
+          make -j$(nproc) modules
+          make -j$(nproc)
+
       - name: Test njs modules, dynamic modules
-        if: matrix.backend == 'quickjs'
+        if: matrix.backend == 'quickjs' || matrix.backend == 'quickjs-ng'
         run: |
           ulimit -c unlimited
           prove -v -j$(nproc) -Inginx-tests/lib --state=save nginx/t . || prove -v -Inginx-tests/lib --state=failed
@@ -474,7 +572,7 @@ jobs:
           LSAN_OPTIONS: "suppressions=${{ github.workspace }}/lsan_suppressions.txt"
 
       - name: Test njs modules (js_engine qjs), dynamic modules
-        if: matrix.backend == 'quickjs'
+        if: matrix.backend == 'quickjs' || matrix.backend == 'quickjs-ng'
         run: |
           ulimit -c unlimited
           prove -v -j$(nproc) -Inginx-tests/lib --state=save nginx/t . || prove -v -Inginx-tests/lib --state=failed
