@@ -1,0 +1,76 @@
+name: nginx.org build
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+  id-token: write
+
+defaults:
+  run:
+    shell: 'bash -Eeo pipefail -x {0}'
+
+jobs:
+  check-if-allowed:
+    if: ${{ ( github.repository_owner == 'nginx' || github.repository_owner == 'nginxinc' ) }}
+    runs-on: [ ubuntu-latest ]
+    steps:
+      - name: Check if we're in the allowed environment
+        run: |
+          org_found=0
+          event_found=0
+          ref_found=0
+          ALLOWED_ORGS="nginx nginxinc"
+          ALLOWED_EVENTS="push"
+          ALLOWED_REFS="refs/heads/main"
+          for org in $ALLOWED_ORGS; do
+            if [ "$org" == "$GITHUB_REPOSITORY_OWNER" ]; then org_found=1; fi
+          done
+          for event in $ALLOWED_EVENTS; do
+            if [ "$event" == "$GITHUB_EVENT_NAME" ]; then event_found=1; fi
+          done
+          for ref in $ALLOWED_REFS; do
+            if [ "$ref" == "$GITHUB_REF" ]; then ref_found=1; fi
+          done
+          if [ $org_found$event_found$ref_found -ne 111 ]; then
+            echo "Repository owner, event, or ref are not explicitely allowed to use this workflow: $GITHUB_REPOSITORY_OWNER, $GITHUB_EVENT_NAME, $GITHUB_REF"
+            exit 1
+          fi
+          exit 0
+          
+  build:
+    name: build
+    runs-on: ubuntu-24.04-amd64
+
+    steps:
+      - name: env
+        run: |
+          sudo apt-get update
+          sudo apt-get -y install libxslt1-dev xsltproc libxml2-utils netpbm python-is-python3
+          
+      - name: checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #v4.2.2
+
+      - name: build
+        run: |
+          make all
+          make gzip
+          make images
+          make genapi
+          make all
+          make copy NGINX_ORG=www
+          echo $GITHUB_SHA > www/sha.txt
+          tar zcf nginx.org.tgz www
+
+      - name: Get Id Token
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        id: idtoken
+        with:
+          script: |
+            let id_token = await core.getIDToken()
+            core.setOutput('id_token', id_token)
+
+      - name: upload
+        run: |
+          curl -v -XPOST -F "file=@nginx.org.tgz" -H "Token: ${{ steps.idtoken.outputs.id_token }}" "${{ vars.DEPLOY_DEST_URL }}"
