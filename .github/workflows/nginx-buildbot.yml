@@ -342,7 +342,7 @@ jobs:
       - name: Test package-max
         working-directory: nginx-tests
         run: |
-          prove -v -j$(nproc) --state=save ../t . || prove -v --state=failed
+          prove -j$(nproc) --state=save ../t . || prove -v --state=failed
         env:
           TEST_NGINX_BINARY: "${{ github.workspace }}/objs/nginx"
           TEST_NGINX_VERBOSE: 1
@@ -368,7 +368,7 @@ jobs:
       - name: Test package-max debug
         working-directory: nginx-tests
         run: |
-          prove -v -j$(nproc) --state=save ../t . || prove -v --state=failed
+          prove -j$(nproc) --state=save ../t . || prove -v --state=failed
         env:
           TEST_NGINX_BINARY: "${{ github.workspace }}/objs/nginx"
           TEST_NGINX_VERBOSE: 1
@@ -403,7 +403,7 @@ jobs:
       - name: Test dynamic
         working-directory: nginx-tests
         run: |
-          prove -v -j$(nproc) --state=save ../t . || prove -v --state=failed
+          prove -j$(nproc) --state=save ../t . || prove -v --state=failed
         env:
           TEST_NGINX_BINARY: "${{ github.workspace }}/objs/nginx"
           TEST_NGINX_GLOBALS: "load_module ${{ github.workspace }}/objs/ngx_http_image_filter_module.so;load_module ${{ github.workspace }}/objs/ngx_http_perl_module.so;load_module ${{ github.workspace }}/objs/ngx_http_xslt_filter_module.so;"
@@ -441,7 +441,7 @@ jobs:
       - name: Test dynamic debug
         working-directory: nginx-tests
         run: |
-          prove -v -j$(nproc) --state=save ../t . || prove -v --state=failed
+          prove -j$(nproc) --state=save ../t . || prove -v --state=failed
         env:
           TEST_NGINX_BINARY: "${{ github.workspace }}/objs/nginx"
           TEST_NGINX_GLOBALS: "load_module ${{ github.workspace }}/objs/ngx_http_image_filter_module.so;load_module /${{ github.workspace }}/objs/ngx_http_perl_module.so;load_module /${{ github.workspace }}/objs/ngx_http_xslt_filter_module.so;"
@@ -468,7 +468,7 @@ jobs:
       - name: Test aio
         working-directory: nginx-tests
         run: |
-          prove -v -j$(nproc) --state=save ../t . || prove -v --state=failed
+          prove -j$(nproc) --state=save ../t . || prove -v --state=failed
         env:
           TEST_NGINX_BINARY: "${{ github.workspace }}/objs/nginx"
           TEST_NGINX_VERBOSE: 1
@@ -479,7 +479,7 @@ jobs:
       - name: Test aio-write
         working-directory: nginx-tests
         run: |
-          prove -v -j$(nproc) --state=save ../t . || prove -v --state=failed
+          prove -j$(nproc) --state=save ../t . || prove -v --state=failed
         env:
           TEST_NGINX_BINARY: "${{ github.workspace }}/objs/nginx"
           TEST_NGINX_VERBOSE: 1
@@ -507,7 +507,7 @@ jobs:
       - name: Test aio debug
         working-directory: nginx-tests
         run: |
-          prove -v -j$(nproc) --state=save ../t . || prove -v --state=failed
+          prove -j$(nproc) --state=save ../t . || prove -v --state=failed
         env:
           TEST_NGINX_BINARY: "${{ github.workspace }}/objs/nginx"
           TEST_NGINX_VERBOSE: 1
@@ -518,7 +518,7 @@ jobs:
       - name: Test aio-write debug
         working-directory: nginx-tests
         run: |
-          prove -v -j$(nproc) --state=save ../t . || prove -v --state=failed
+          prove -j$(nproc) --state=save ../t . || prove -v --state=failed
         env:
           TEST_NGINX_BINARY: "${{ github.workspace }}/objs/nginx"
           TEST_NGINX_VERBOSE: 1
@@ -551,7 +551,7 @@ jobs:
       - name: Test ndb
         if: ${{ matrix.subarch == '' }}
         run: |
-          prove -v -j$(nproc) --state=save ./ndb/t || prove -v --state=failed
+          prove -j$(nproc) --state=save ./ndb/t || prove -v --state=failed
         env:
           TEST_NGINX_BINARY: "${{ github.workspace }}/objs/nginx"
           TEST_NGINX_VERBOSE: 1
@@ -726,7 +726,7 @@ jobs:
         working-directory: nginx-tests
         run: |
           ulimit -c unlimited
-          prove -v -j$(nproc) --state=save ../t . || prove -v --state=failed
+          prove -j$(nproc) --state=save ../t . || prove -v --state=failed
         env:
           TEST_NGINX_BINARY: "${{ github.workspace }}/objs/nginx"
           TEST_NGINX_VERBOSE: 1
@@ -893,7 +893,7 @@ jobs:
         shell: cmd
         working-directory: nginx-tests
         run: |
-          prove -v --state=save ../t . || prove -v --state=failed
+          prove --state=save ../t . || prove -v --state=failed
         env:
           TEST_NGINX_BINARY: "${{ github.workspace }}\\objs\\nginx.exe"
           TEST_NGINX_VERBOSE: 1
@@ -934,7 +934,7 @@ jobs:
         shell: cmd
         working-directory: nginx-tests
         run: |
-          prove -v --state=save ../t . || prove -v --state=failed
+          prove --state=save ../t . || prove -v --state=failed
         env:
           TEST_NGINX_BINARY: "${{ github.workspace }}\\objs\\nginx.exe"
           TEST_NGINX_VERBOSE: 1
@@ -963,7 +963,7 @@ jobs:
         shell: cmd
         working-directory: nginx-tests
         run: |
-          prove -v --state=save ../t . || prove -v --state=failed
+          prove --state=save ../t . || prove -v --state=failed
         env:
           TEST_NGINX_BINARY: "${{ github.workspace }}\\objs\\nginx.exe"
           TEST_NGINX_VERBOSE: 1

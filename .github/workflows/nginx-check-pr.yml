@@ -90,7 +90,7 @@ jobs:
       - name: Test
         working-directory: nginx-tests
         run: |
-          prove -v -j$(nproc) --state=save ../t . || prove -v --state=failed
+          prove -j$(nproc) --state=save ../t . || prove -v --state=failed
         env:
           TEST_NGINX_BINARY: "${{ github.workspace }}/objs/nginx"
           TEST_NGINX_VERBOSE: 1
