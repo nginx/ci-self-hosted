@@ -633,7 +633,7 @@ jobs:
       fail-fast: false
     env:
       quictls_ver: 3.0.15+quic
-      libressl_ver: 3.9.2
+      libressl_ver: 4.0.0
 
     steps:
       - name: Check out nginx sources
@@ -656,7 +656,7 @@ jobs:
               make -j$(nproc)
             ;;
             lssl)
-              curl -OL https://cdn.openbsd.org/pub/OpenBSD/LibreSSL/libressl-${{ env.libressl_ver }}.tar.gz
+              curl -OL https://ftp.openbsd.org/pub/OpenBSD/LibreSSL/libressl-${{ env.libressl_ver }}.tar.gz
               tar -s /libressl-${{ env.libressl_ver }}/ssl/ -xzf libressl-${{ env.libressl_ver }}.tar.gz
               cd ssl
               ./configure --disable-shared
