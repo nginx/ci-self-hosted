@@ -629,7 +629,7 @@ jobs:
       matrix:
         os: [ freebsd-14 ]
         arch: [ amd64 ]
-        ssl: [ 'ossl31', 'ossl32', 'ossl33', 'ossl34', 'bssl', 'lssl', 'qssl' ]
+        ssl: [ 'ossl31', 'ossl32', 'ossl33', 'ossl34', 'ossl35', 'bssl', 'lssl', 'qssl' ]
       fail-fast: false
     env:
       quictls_ver: 3.0.15+quic
@@ -682,6 +682,12 @@ jobs:
             ;;
             ossl34)
               git clone --depth 1 -b openssl-3.4 https://github.com/openssl/openssl ssl
+              cd ssl
+              ./config no-shared no-threads
+              make -sj$(nproc)
+            ;;
+            ossl35)
+              git clone --depth 1 -b openssl-3.5 https://github.com/openssl/openssl ssl
               cd ssl
               ./config no-shared no-threads
               make -sj$(nproc)
