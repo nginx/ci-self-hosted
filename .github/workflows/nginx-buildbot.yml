@@ -705,7 +705,7 @@ jobs:
           mkdir -p t/
           case "${{ matrix.ssl }}" in
             bssl)
-              LD_OPT="-L ssl/build/ssl -L ssl/build/crypto -lstdc++"
+              LD_OPT="-L ssl/build -lstdc++"
               ;;
             lssl)
               LD_OPT="-L ssl/ssl/.libs -L ssl/crypto/.libs"
