@@ -44,14 +44,18 @@ jobs:
     needs: check-if-allowed
     strategy:
       matrix:
-        os: [ alpine-3.19, alpine-3.20, amazonlinux-2, amazonlinux-2023, debian-11, debian-12, freebsd-14, rhel-8, rhel-9, sles-15, ubuntu-20.04, ubuntu-22.04, ubuntu-24.04 ]
+        os: [ alpine-3.19, alpine-3.20, alpine-3.21, amazonlinux-2, amazonlinux-2023, debian-11, debian-12, freebsd-14, rhel-8, rhel-9, sles-15, ubuntu-20.04, ubuntu-22.04, ubuntu-24.04, ubuntu-25.04 ]
         arch: [ amd64, arm64 ]
         subarch: [ '' ]
         sanitizer: [ '' ]
         exclude:
+          - os: alpine-3.21 # we don't have an arm64 builder for alpine-3.21 yet
+            arch: arm64
           - os: freebsd-14 # we don't have an arm64 builder for freebsd-14 yet
             arch: arm64
           - os: sles-15 # we don't have an arm64 builder for sles-15 yet
+            arch: arm64
+          - os: ubuntu-25.04 # we don't have an arm64 builder for ubuntu 25.04 yet
             arch: arm64
         include:
           - os: debian-12
@@ -80,6 +84,10 @@ jobs:
               "LD_OPT": "$(. /usr/share/abuild/default.conf; echo $LDFLAGS)"
             },
             "alpine-3.20": {
+              "CC_OPT": "$(. /usr/share/abuild/default.conf; echo $CFLAGS)",
+              "LD_OPT": "$(. /usr/share/abuild/default.conf; echo $LDFLAGS)"
+            },
+            "alpine-3.21": {
               "CC_OPT": "$(. /usr/share/abuild/default.conf; echo $CFLAGS)",
               "LD_OPT": "$(. /usr/share/abuild/default.conf; echo $LDFLAGS)"
             },
@@ -124,6 +132,10 @@ jobs:
               "LD_OPT": "$(DEB_BUILD_MAINT_OPTIONS=hardening=+all DEB_CFLAGS_MAINT_APPEND=-fPIC DEB_LDFLAGS_MAINT_APPEND=-Wl,--as-needed dpkg-buildflags --get LDFLAGS)"
             },
             "ubuntu-24.04": {
+              "CC_OPT": "$(DEB_BUILD_MAINT_OPTIONS=hardening=+all DEB_CFLAGS_MAINT_APPEND=-fPIC DEB_LDFLAGS_MAINT_APPEND=-Wl,--as-needed dpkg-buildflags --get CFLAGS)",
+              "LD_OPT": "$(DEB_BUILD_MAINT_OPTIONS=hardening=+all DEB_CFLAGS_MAINT_APPEND=-fPIC DEB_LDFLAGS_MAINT_APPEND=-Wl,--as-needed dpkg-buildflags --get LDFLAGS)"
+            },
+            "ubuntu-25.04": {
               "CC_OPT": "$(DEB_BUILD_MAINT_OPTIONS=hardening=+all DEB_CFLAGS_MAINT_APPEND=-fPIC DEB_LDFLAGS_MAINT_APPEND=-Wl,--as-needed dpkg-buildflags --get CFLAGS)",
               "LD_OPT": "$(DEB_BUILD_MAINT_OPTIONS=hardening=+all DEB_CFLAGS_MAINT_APPEND=-fPIC DEB_LDFLAGS_MAINT_APPEND=-Wl,--as-needed dpkg-buildflags --get LDFLAGS)"
             },
