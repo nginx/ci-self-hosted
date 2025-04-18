@@ -22,7 +22,7 @@ jobs:
           ref_found=0
           ALLOWED_ORGS="nginx nginxinc"
           ALLOWED_EVENTS="push"
-          ALLOWED_REFS="refs/heads/main refs/heads/master refs/heads/stable-1.26"
+          ALLOWED_REFS="refs/heads/main refs/heads/master refs/heads/stable-1.28"
           for org in $ALLOWED_ORGS; do
             if [ "$org" == "$GITHUB_REPOSITORY_OWNER" ]; then org_found=1; fi
           done
