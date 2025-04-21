@@ -652,7 +652,7 @@ jobs:
               git clone https://boringssl.googlesource.com/boringssl ssl
               mkdir ssl/build
               cd ssl/build
-              cmake ..
+              cmake .. -DBUILD_TESTING=off
               make -j$(nproc)
             ;;
             lssl)
