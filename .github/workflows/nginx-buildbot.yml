@@ -212,7 +212,7 @@ jobs:
                                            --with-stream_realip_module \
                                            --with-threads \
                                            --with-compat",
-            "NGINX_CONFIGURE_ADD_STD_COMMON": "--with-cpp_test_module",
+            "NGINX_CONFIGURE_ADD_CPP_TEST": "--with-cpp_test_module",
             "NGINX_CONFIGURE_ADD_STD": "--with-http_perl_module \
                                         --with-http_xslt_module \
                                         --with-http_image_filter_module",
@@ -238,7 +238,7 @@ jobs:
 
             NGINX_CONFIGURE_CMD_MIN=$(echo $ENV_JSON | jq -r '.NGINX_CONFIGURE_CMD_MIN')
             NGINX_CONFIGURE_CMD_COMMON=$(echo $ENV_JSON | jq -r '.NGINX_CONFIGURE_CMD_COMMON')
-            NGINX_CONFIGURE_ADD_STD_COMMON=$(echo $ENV_JSON | jq -r '.NGINX_CONFIGURE_ADD_STD_COMMON')
+            NGINX_CONFIGURE_ADD_CPP_TEST=$(echo $ENV_JSON | jq -r '.NGINX_CONFIGURE_ADD_CPP_TEST')
             NGINX_CONFIGURE_ADD_STD=$(echo $ENV_JSON | jq -r '.NGINX_CONFIGURE_ADD_STD')
             NGINX_CONFIGURE_ADD_STD_MODULES=$(echo $ENV_JSON | jq -r '.NGINX_CONFIGURE_ADD_STD_MODULES')
             NGINX_CONFIGURE_ADD_COMMON=$(echo $ENV_JSON | jq -r '.NGINX_CONFIGURE_ADD_COMMON')
@@ -291,7 +291,7 @@ jobs:
             echo NGINX_CONFIGURE_CMD_MIN="$NGINX_CONFIGURE_CMD_MIN" >> $GITHUB_ENV
             echo NGINX_CONFIGURE_CMD_COMMON="$NGINX_CONFIGURE_CMD_COMMON" >> $GITHUB_ENV
             echo NGINX_CONFIGURE_ADD_COMMON="$NGINX_CONFIGURE_ADD_COMMON" >> $GITHUB_ENV
-            echo NGINX_CONFIGURE_ADD_STD_COMMON="$NGINX_CONFIGURE_ADD_STD_COMMON" >> $GITHUB_ENV
+            echo NGINX_CONFIGURE_ADD_CPP_TEST="$NGINX_CONFIGURE_ADD_CPP_TEST" >> $GITHUB_ENV
             echo NGINX_CONFIGURE_ADD_STD="$NGINX_CONFIGURE_ADD_STD" >> $GITHUB_ENV
             echo NGINX_CONFIGURE_ADD_STD_MODULES="$NGINX_CONFIGURE_ADD_STD_MODULES" >> $GITHUB_ENV
             echo NGINX_CONFIGURE_ADD_GEOIP="$NGINX_CONFIGURE_ADD_GEOIP" >> $GITHUB_ENV
@@ -339,11 +339,22 @@ jobs:
       - name: Cleanup
         run: make clean
 
+      - name: Configure and build common w/ cpp_test module
+        run: |
+          $NGINX_CONFIGURE_CMD_COMMON \
+            $NGINX_CONFIGURE_ADD_CPP_TEST \
+            --with-cc-opt="$NGINX_CONFIGURE_ADD_AUX_CC_OPT" \
+            --with-ld-opt="$NGINX_CONFIGURE_ADD_AUX_LD_OPT" \
+          || cat objs/autoconf.err
+          make -j$(nproc) -k || make
+
+      - name: Cleanup
+        run: make clean
+
       - name: Configure and build package-max
         run: |
           $NGINX_CONFIGURE_CMD_COMMON \
             $NGINX_CONFIGURE_ADD_COMMON \
-            $NGINX_CONFIGURE_ADD_STD_COMMON \
             $NGINX_CONFIGURE_ADD_STD \
             $NGINX_CONFIGURE_ADD_GEOIP \
             --with-cc-opt="$CC_OPT" \
@@ -368,7 +379,6 @@ jobs:
         run: |
           $NGINX_CONFIGURE_CMD_COMMON \
             $NGINX_CONFIGURE_ADD_COMMON \
-            $NGINX_CONFIGURE_ADD_STD_COMMON \
             $NGINX_CONFIGURE_ADD_STD \
             $NGINX_CONFIGURE_ADD_GEOIP \
             --with-cc-opt="$CC_OPT" \
@@ -394,7 +404,6 @@ jobs:
         run: |
           $NGINX_CONFIGURE_CMD_COMMON \
             $NGINX_CONFIGURE_ADD_COMMON \
-            $NGINX_CONFIGURE_ADD_STD_COMMON \
             $NGINX_CONFIGURE_ADD_STD_MODULES \
             $NGINX_CONFIGURE_ADD_GEOIP_MODULES \
             --with-cc-opt="$CC_OPT" \
@@ -406,7 +415,6 @@ jobs:
         run: |
           $NGINX_CONFIGURE_CMD_COMMON \
             $NGINX_CONFIGURE_ADD_COMMON \
-            $NGINX_CONFIGURE_ADD_STD_COMMON \
             --with-cc-opt="$CC_OPT" \
             --with-ld-opt="$LD_OPT" \
           || cat objs/autoconf.err
@@ -430,7 +438,6 @@ jobs:
         run: |
           $NGINX_CONFIGURE_CMD_COMMON \
             $NGINX_CONFIGURE_ADD_COMMON \
-            $NGINX_CONFIGURE_ADD_STD_COMMON \
             $NGINX_CONFIGURE_ADD_STD_MODULES \
             $NGINX_CONFIGURE_ADD_GEOIP_MODULES \
             --with-cc-opt="$CC_OPT" \
@@ -443,7 +450,6 @@ jobs:
         run: |
           $NGINX_CONFIGURE_CMD_COMMON \
             $NGINX_CONFIGURE_ADD_COMMON \
-            $NGINX_CONFIGURE_ADD_STD_COMMON \
             --with-cc-opt="$CC_OPT" \
             --with-ld-opt="$LD_OPT" \
             --with-debug \
@@ -468,7 +474,6 @@ jobs:
         run: |
           $NGINX_CONFIGURE_CMD_COMMON \
             $NGINX_CONFIGURE_ADD_COMMON \
-            $NGINX_CONFIGURE_ADD_STD_COMMON \
             $NGINX_CONFIGURE_ADD_STD \
             $NGINX_CONFIGURE_ADD_GEOIP \
             $NGINX_CONFIGURE_ADD_AIO \
@@ -506,7 +511,6 @@ jobs:
         run: |
           $NGINX_CONFIGURE_CMD_COMMON \
             $NGINX_CONFIGURE_ADD_COMMON \
-            $NGINX_CONFIGURE_ADD_STD_COMMON \
             $NGINX_CONFIGURE_ADD_STD \
             $NGINX_CONFIGURE_ADD_GEOIP \
             $NGINX_CONFIGURE_ADD_AIO \
@@ -551,7 +555,6 @@ jobs:
         run: |
           $NGINX_CONFIGURE_CMD_COMMON \
             $NGINX_CONFIGURE_ADD_COMMON \
-            $NGINX_CONFIGURE_ADD_STD_COMMON \
             $NGINX_CONFIGURE_ADD_STD \
             $NGINX_CONFIGURE_ADD_GEOIP \
             --with-cc-opt="$CC_OPT" \
