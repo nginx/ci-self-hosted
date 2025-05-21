@@ -23,6 +23,11 @@ on:
         default: "https://up-ap.nginx.com"
     secrets:
       INDIGO_GPG_AGENT:
+        required: true
+      ARTIFACTORY_USER: 
+        required: true
+      ARTIFACTORY_TOKEN:
+        required: true
 
 
 env:
@@ -93,7 +98,7 @@ jobs:
         run: |
           export PATH=$PATH:~/go/bin
           echo "$GPG_KEY" | base64 --decode > ${NFPM_SIGNING_KEY_FILE}
-          make package
+          echo "Run make package -> $VERSION $PACKAGE_BUILD"
 
       - name: Publish Release Packages
         if: ${{ inputs.publishPackages == true }}
@@ -101,4 +106,4 @@ jobs:
           TOKEN: ${{ secrets.id_token }}
           UPLOAD_URL: ${{ inputs.uploadUrl }}
         run: |
-          make release
+          echo "Run make release -> $UPLOAD_URL"
