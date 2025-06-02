@@ -44,9 +44,9 @@ jobs:
         arch: [ amd64, arm64 ]
         subarch: [ '' ]
         exclude:
-          - os: freebsd-14 # we don't have arm64 builder for freebsd-14 yet
+          - os: freebsd-14
             arch: arm64
-          - os: sles-15 # we don't have arm64 builder for sles-15 yet
+          - os: sles-15
             arch: arm64
         include:
           - os: debian-12

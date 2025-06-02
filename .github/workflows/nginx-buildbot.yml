@@ -49,13 +49,13 @@ jobs:
         subarch: [ '' ]
         sanitizer: [ '' ]
         exclude:
-          - os: alpine-3.21 # we don't have an arm64 builder for alpine-3.21 yet
+          - os: alpine-3.21
             arch: arm64
-          - os: freebsd-14 # we don't have an arm64 builder for freebsd-14 yet
+          - os: freebsd-14
             arch: arm64
-          - os: sles-15 # we don't have an arm64 builder for sles-15 yet
+          - os: sles-15
             arch: arm64
-          - os: ubuntu-25.04 # we don't have an arm64 builder for ubuntu 25.04 yet
+          - os: ubuntu-25.04
             arch: arm64
         include:
           - os: debian-12
