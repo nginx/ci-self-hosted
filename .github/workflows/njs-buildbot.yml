@@ -40,7 +40,7 @@ jobs:
     needs: check-if-allowed
     strategy:
       matrix:
-        os: [ alpine-3.19, amazonlinux-2, amazonlinux-2023, debian-11, debian-12, freebsd-14, rhel-8, rhel-9, sles-15, ubuntu-20.04, ubuntu-22.04, ubuntu-24.04 ]
+        os: [ alpine-3.19, amazonlinux-2, amazonlinux-2023, debian-11, debian-12, freebsd-14, rhel-8, rhel-9, sles-15, ubuntu-22.04, ubuntu-24.04 ]
         arch: [ amd64, arm64 ]
         subarch: [ '' ]
         exclude:
@@ -122,15 +122,6 @@ jobs:
               "CC_OPT": "$(rpm --eval %{optflags}) $(pcre2-config --cflags) -fPIC",
               "LD_OPT": "-Wl,-z,relro -Wl,-z,now",
               "type": "rpm"
-            },
-            "ubuntu-20.04": {
-              "NGINX_CONFIGURE_CMD_APPEND": "--with-http_geoip_module --with-stream_geoip_module",
-              "DEB_BUILD_MAINT_OPTIONS": "hardening=+all",
-              "DEB_CFLAGS_MAINT_APPEND": "-Wp,-D_FORTIFY_SOURCE=2 -fPIC",
-              "DEB_LDFLAGS_MAINT_APPEND": "-Wl,--as-needed",
-              "CC_OPT": "dpkg-buildflags --get CFLAGS",
-              "LD_OPT": "dpkg-buildflags --get LDFLAGS",
-              "type": "deb"
             },
             "ubuntu-22.04": {
               "NGINX_CONFIGURE_CMD_APPEND": "--with-http_geoip_module --with-stream_geoip_module",
