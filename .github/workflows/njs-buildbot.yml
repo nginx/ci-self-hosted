@@ -40,13 +40,19 @@ jobs:
     needs: check-if-allowed
     strategy:
       matrix:
-        os: [ alpine-3.19, amazonlinux-2, amazonlinux-2023, debian-11, debian-12, freebsd-14, rhel-8, rhel-9, sles-15, ubuntu-22.04, ubuntu-24.04 ]
+        os: [ alpine-3.19, alpine-3.20, alpine-3.21, amazonlinux-2, amazonlinux-2023, debian-11, debian-12, freebsd-14, rhel-8, rhel-9, rhel-10, sles-15, ubuntu-22.04, ubuntu-24.04, ubuntu-25.04 ]
         arch: [ amd64, arm64 ]
         subarch: [ '' ]
         exclude:
+          - os: alpine-3.21
+            arch: arm64
           - os: freebsd-14
             arch: arm64
+          - os: rhel-10
+            arch: arm64
           - os: sles-15
+            arch: arm64
+          - os: ubuntu-25.04
             arch: arm64
         include:
           - os: debian-12
@@ -68,6 +74,18 @@ jobs:
             ENV_JSON=$(cat <<EOF
             {
             "alpine-3.19": {
+              "NGINX_CONFIGURE_CMD_APPEND": "--with-http_geoip_module --with-stream_geoip_module",
+              "CC_OPT": "$(. /usr/share/abuild/default.conf; echo $CFLAGS)",
+              "LD_OPT": "$(. /usr/share/abuild/default.conf; echo $LDFLAGS)",
+              "type": "apk"
+            },
+            "alpine-3.20": {
+              "NGINX_CONFIGURE_CMD_APPEND": "--with-http_geoip_module --with-stream_geoip_module",
+              "CC_OPT": "$(. /usr/share/abuild/default.conf; echo $CFLAGS)",
+              "LD_OPT": "$(. /usr/share/abuild/default.conf; echo $LDFLAGS)",
+              "type": "apk"
+            },
+            "alpine-3.21": {
               "NGINX_CONFIGURE_CMD_APPEND": "--with-http_geoip_module --with-stream_geoip_module",
               "CC_OPT": "$(. /usr/share/abuild/default.conf; echo $CFLAGS)",
               "LD_OPT": "$(. /usr/share/abuild/default.conf; echo $LDFLAGS)",
@@ -117,6 +135,11 @@ jobs:
               "LD_OPT": "-Wl,-z,relro -Wl,-z,now",
               "type": "rpm"
             },
+            "rhel-10": {
+              "CC_OPT": "$(rpm --eval %{optflags}) $(pcre2-config --cflags) -fPIC",
+              "LD_OPT": "-Wl,-z,relro -Wl,-z,now",
+              "type": "rpm"
+            },
             "sles-15": {
               "NGINX_CONFIGURE_CMD_APPEND": "--with-http_geoip_module --with-stream_geoip_module",
               "CC_OPT": "$(rpm --eval %{optflags}) $(pcre2-config --cflags) -fPIC",
@@ -133,6 +156,15 @@ jobs:
               "type": "deb"
             },
             "ubuntu-24.04": {
+              "NGINX_CONFIGURE_CMD_APPEND": "--with-http_geoip_module --with-stream_geoip_module",
+              "DEB_BUILD_MAINT_OPTIONS": "hardening=+all",
+              "DEB_CFLAGS_MAINT_APPEND": "-fPIC",
+              "DEB_LDFLAGS_MAINT_APPEND": "-Wl,--as-needed",
+              "CC_OPT": "dpkg-buildflags --get CFLAGS",
+              "LD_OPT": "dpkg-buildflags --get LDFLAGS",
+              "type": "deb"
+            },
+            "ubuntu-25.04": {
               "NGINX_CONFIGURE_CMD_APPEND": "--with-http_geoip_module --with-stream_geoip_module",
               "DEB_BUILD_MAINT_OPTIONS": "hardening=+all",
               "DEB_CFLAGS_MAINT_APPEND": "-fPIC",
