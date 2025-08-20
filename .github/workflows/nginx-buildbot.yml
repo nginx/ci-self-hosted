@@ -44,7 +44,7 @@ jobs:
     needs: check-if-allowed
     strategy:
       matrix:
-        os: [ alpine-3.19, alpine-3.20, alpine-3.21, amazonlinux-2, amazonlinux-2023, debian-11, debian-12, freebsd-14, rhel-8, rhel-9, rhel-10, sles-15, ubuntu-22.04, ubuntu-24.04, ubuntu-25.04 ]
+        os: [ alpine-3.19, alpine-3.20, alpine-3.21, alpine-3.22, amazonlinux-2, amazonlinux-2023, debian-11, debian-12, freebsd-14, rhel-8, rhel-9, rhel-10, sles-15, ubuntu-22.04, ubuntu-24.04, ubuntu-25.04 ]
         arch: [ amd64, arm64 ]
         subarch: [ '' ]
         sanitizer: [ '' ]
@@ -52,6 +52,8 @@ jobs:
           - os: alpine-3.20
             arch: arm64
           - os: alpine-3.21
+            arch: arm64
+          - os: alpine-3.22
             arch: arm64
           - os: amazonlinux-2
             arch: arm64
@@ -94,6 +96,10 @@ jobs:
               "LD_OPT": "$(. /usr/share/abuild/default.conf; echo $LDFLAGS)"
             },
             "alpine-3.21": {
+              "CC_OPT": "$(. /usr/share/abuild/default.conf; echo $CFLAGS)",
+              "LD_OPT": "$(. /usr/share/abuild/default.conf; echo $LDFLAGS)"
+            },
+            "alpine-3.22": {
               "CC_OPT": "$(. /usr/share/abuild/default.conf; echo $CFLAGS)",
               "LD_OPT": "$(. /usr/share/abuild/default.conf; echo $LDFLAGS)"
             },
