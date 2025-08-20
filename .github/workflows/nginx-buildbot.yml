@@ -53,6 +53,8 @@ jobs:
             arch: arm64
           - os: alpine-3.21
             arch: arm64
+          - os: amazonlinux-2
+            arch: arm64
           - os: freebsd-14
             arch: arm64
           - os: rhel-10
