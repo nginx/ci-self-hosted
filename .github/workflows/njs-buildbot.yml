@@ -44,6 +44,8 @@ jobs:
         arch: [ amd64, arm64 ]
         subarch: [ '' ]
         exclude:
+          - os: alpine-3.20
+            arch: arm64
           - os: alpine-3.21
             arch: arm64
           - os: freebsd-14
