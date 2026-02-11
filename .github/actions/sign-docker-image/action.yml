@@ -1,0 +1,86 @@
+name: Sign a docker image
+description: sign an image with nginx hosted key.
+
+inputs:
+  image:
+    required: true
+    type: string
+    description: "The image to sign. Preferably with a tag and @sha sum."
+  annotations:
+    required: false
+    type: string
+    default: ""
+    description: 'Optional attributes to sign. Must be a valid JSON object. E.g. {"key":"value"}. '
+  key_name:
+    required: false
+    type: string
+    default: "nginx_signing.rsa"
+    description: "The name of a key to sign with. Default should be good for 99% of cases."
+  remove_reference:
+    required: false
+    type: boolean
+    default: true
+    description: "Drop registry name from critical signature part. Should almost always be true."
+
+# No outputs for now
+#outputs:
+
+runs:
+  using: "composite"
+  steps:
+      # We use Id Tokens to access registries
+    - name: Get Id Token
+      uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+      id: idtoken
+      with:
+        script: |
+          let id_token = await core.getIDToken()
+          core.setOutput('id_token', id_token)
+
+    - name: Install Cosign
+      uses: sigstore/cosign-installer@v4.0.0
+
+    - name: Sign uploaded image
+      shell: bash
+      run: |
+        # just in case: enable debug if requested
+        test -n "${RUNNER_DEBUG-}" && set -x
+
+        DIR=`mktemp -d`
+        cd $DIR
+        TAG=`echo ${{ inputs.image }}`
+        ANNS=`echo ${{ inputs.annotations }} | jq -r '. as $o | keys | map("\(.)=\($o[.])") | join(",")'`
+        if [ -n "$ANNS" ]; then
+          ANNS="-a $ANNS"
+        fi 
+
+        echo "Getting the payload to sign."
+        PAYLOAD=`cosign generate $ANNS --registry-token="${{ steps.idtoken.outputs.id_token }}" "$TAG"`
+
+        # docker-reference is the host part of the IMAGE
+        # we typically use different hosts to upload and serve image
+        if [ "${{inputs.remove_reference}}" = "true" ] ; then
+          echo "Removing registry address from the payload."
+          PAYLOAD=`echo "$PAYLOAD" | jq 'del(.critical.identity."docker-reference")'`
+        fi
+
+        echo -n "$PAYLOAD" > payload.json
+
+        echo "Signing the payload."
+        KEY=`echo -n ${{ inputs.key_name }} | jq -sRr @uri `
+        curl  --silent -H "Token:  ${{ steps.idtoken.outputs.id_token }}" \
+          --data-binary @payload.json \
+          "https://signing.nginx.com/sign?digest=SHA-256&filename=payload.json&key=$KEY&sigtype=blob" > payload.json.sig
+        cat payload.json.sig | base64 > payloadbase64.sig
+
+        echo "Attching the signature to the image."
+        cosign attach signature --payload payload.json --signature payloadbase64.sig $TAG
+
+        if [ "$KEY" = "nginx_signing.rsa" ]; then
+          echo "Verifying the signature."
+          curl -s https://cs.nginx.com/static/keys/nginx_signing.rsa.pub > signing.pub
+          cosign verify --key signing.pub --insecure-ignore-tlog=true $TAG
+        fi
+
+        echo "Removing temporary data."
+        cd - && rm -rf $DIR
