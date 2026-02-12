@@ -48,7 +48,7 @@ runs:
 
         DIR=`mktemp -d`
         cd $DIR
-        TAG=`echo ${{ inputs.image }}`
+        TAG="${{ inputs.image }}"
         ANNS=`echo ${{ inputs.annotations }} | jq -r '. as $o | keys | map("\(.)=\($o[.])") | join(",")'`
         if [ -n "$ANNS" ]; then
           ANNS="-a $ANNS"
@@ -68,12 +68,12 @@ runs:
 
         echo "Signing the payload."
         KEY=`echo -n ${{ inputs.key_name }} | jq -sRr @uri `
-        curl  --silent -H "Token:  ${{ steps.idtoken.outputs.id_token }}" \
+        curl --silent -H "Token: ${{ steps.idtoken.outputs.id_token }}" \
           --data-binary @payload.json \
           "https://signing.nginx.com/sign?digest=SHA-256&filename=payload.json&key=$KEY&sigtype=blob" > payload.json.sig
         cat payload.json.sig | base64 > payloadbase64.sig
 
-        echo "Attching the signature to the image."
+        echo "Attaching the signature to the image."
         cosign attach signature --payload payload.json --signature payloadbase64.sig $TAG
 
         if [ "$KEY" = "nginx_signing.rsa" ]; then
