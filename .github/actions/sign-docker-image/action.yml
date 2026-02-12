@@ -43,6 +43,7 @@ runs:
     - name: Sign uploaded image
       shell: bash
       run: |
+        set -e
         # just in case: enable debug if requested
         test -n "${RUNNER_DEBUG-}" && set -x
 
