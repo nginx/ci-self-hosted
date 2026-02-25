@@ -40,7 +40,7 @@ jobs:
     needs: check-if-allowed
     strategy:
       matrix:
-        os: [ alpine-3.19, alpine-3.20, alpine-3.21, alpine-3.22, alpine-3.23, amazonlinux-2, amazonlinux-2023, debian-11, debian-12, debian-13, freebsd-14, rhel-8, rhel-9, rhel-10, sles-15, ubuntu-22.04, ubuntu-24.04, ubuntu-25.10 ]
+        os: [ alpine-3.19, alpine-3.20, alpine-3.21, alpine-3.22, alpine-3.23, amazonlinux-2, amazonlinux-2023, debian-11, debian-12, debian-13, freebsd-14, freebsd-15, rhel-8, rhel-9, rhel-10, sles-15, ubuntu-22.04, ubuntu-24.04, ubuntu-25.10 ]
         arch: [ amd64, arm64 ]
         subarch: [ '' ]
         exclude:
@@ -134,6 +134,11 @@ jobs:
               "type": "deb"
             },
             "freebsd-14": {
+              "CC_OPT": "-I/usr/local/include -Wno-compound-token-split-by-macro",
+              "LD_OPT": "-L/usr/local/lib -Wl,-z,relro -Wl,-z,now",
+              "type": "bsd"
+            },
+            "freebsd-15": {
               "CC_OPT": "-I/usr/local/include -Wno-compound-token-split-by-macro",
               "LD_OPT": "-L/usr/local/lib -Wl,-z,relro -Wl,-z,now",
               "type": "bsd"
