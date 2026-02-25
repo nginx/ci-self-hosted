@@ -276,7 +276,7 @@ jobs:
         run: |
           git clone https://github.com/quickjs-ng/quickjs quickjs-ng
           cd quickjs-ng
-          git checkout v0.8.0
+          git checkout v0.12.1
           if command -v cmake3>/dev/null; then CMAKE=cmake3; else CMAKE=cmake; fi
           CFLAGS="$CC_OPT -fPIC" LDFLAGS=$LD_OPT $CMAKE -B build
           $CMAKE --build build --target qjs -j $(nproc)
@@ -468,7 +468,7 @@ jobs:
         run: |
           git clone https://github.com/quickjs-ng/quickjs quickjs-ng
           cd quickjs-ng
-          git checkout v0.8.0
+          git checkout v0.12.1
           CFLAGS="$CC_OPT -fPIC" LDFLAGS=$LD_OPT cmake -B build
           cmake --build build --target qjs -j $(nproc)
 
