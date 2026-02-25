@@ -41,7 +41,6 @@ jobs:
     strategy:
       matrix:
         os:
-          - alpine-3.19
           - alpine-3.20
           - alpine-3.21
           - alpine-3.22
@@ -85,12 +84,6 @@ jobs:
         run: |
             ENV_JSON=$(cat <<EOF
             {
-            "alpine-3.19": {
-              "NGINX_CONFIGURE_CMD_APPEND": "--with-http_geoip_module --with-stream_geoip_module",
-              "CC_OPT": "$(. /usr/share/abuild/default.conf; echo $CFLAGS)",
-              "LD_OPT": "$(. /usr/share/abuild/default.conf; echo $LDFLAGS)",
-              "type": "apk"
-            },
             "alpine-3.20": {
               "NGINX_CONFIGURE_CMD_APPEND": "--with-http_geoip_module --with-stream_geoip_module",
               "CC_OPT": "$(. /usr/share/abuild/default.conf; echo $CFLAGS)",
