@@ -288,6 +288,12 @@ jobs:
                 NGINX_CONFIGURE_ADD_GEOIP=""
                 NGINX_CONFIGURE_ADD_GEOIP_MODULES=""
                 TEST_NGINX_GLOBALS_HTTP_AIO="aio on; sendfile on; tcp_nopush on;"
+                case "${{ matrix.arch }}" in
+                  arm64)
+                    # degradation module will not build on freebsd/arm
+                    NGINX_CONFIGURE_ADD_COMMON="${NGINX_CONFIGURE_ADD_COMMON##--with-http_degradation_module}"
+                    ;;
+                esac
                 ;;
               rhel-*)
                 NGINX_CONFIGURE_ADD_GEOIP=""
