@@ -1,0 +1,33 @@
+{
+  "name": "Key vault retrival action",
+  "description": "The action gets a key from an Azure vault",
+  "version": "0.0.1",
+  "author": "oxpa",
+  "type": "module",
+  "private": true,
+  "homepage": "",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "scripts": {
+    "package": "npx rimraf ./dist && npx rollup --config rollup.config.ts --configPlugin @rollup/plugin-typescript"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@actions/core": "^3.0.0"
+  },
+  "devDependencies": {
+    "@azure/identity": "^4.13.1",
+    "@azure/keyvault-secrets": "^4.10.0",
+    "@rollup/plugin-commonjs": "^29.0.0",
+    "@rollup/plugin-node-resolve": "^16.0.3",
+    "@rollup/plugin-typescript": "^12.3.0",
+    "@types/node": "^25.5.0",
+    "rollup": "^4.57.1",
+    "tslib": "^2.8.1",
+    "typescript": "^5.9.3"
+  }
+}
