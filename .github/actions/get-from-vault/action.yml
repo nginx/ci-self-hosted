@@ -1,0 +1,24 @@
+name: "Pull secret from vault"
+description: "Pulls values from a vault, marks them as secrets."
+author: "oxpa"
+
+inputs:
+  client-id:
+    description: "Client id can be found in properties of an app that is used to access the vault."
+    required: false
+  tenant-id:
+    description: "Tenant ID of the vault."
+    required: false
+  vault-name:
+    description: "Name of the vault."
+    required: true
+  secret-names:
+    description: "The secret to fetch. Separated by a comma, spaces are chomped."
+    required: true
+  env-names:
+    description: "The secret will be available as this env variable or capitalised secret_name if not set. Also split with commas"
+    required: false
+
+runs:
+  using: node24
+  main: dist/index.js
