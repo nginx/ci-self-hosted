@@ -59,7 +59,7 @@ jobs:
           subscription-id: ${{secrets.MY_SUBS_ID}}
 
       - name: Get secrets
-        uses: nginx/ci-self-hosted/.github/actions/get-from-vault
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@refs/heads/main
         with:
           # note - only vault and secret names are needed
           vault-name: "my-vault"
@@ -81,7 +81,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Get secrets
-        uses: nginx/ci-self-hosted/.github/actions/get-from-vault
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@refs/heads/main
         with:
           client-id: ${{secrets.MY_CLIENT_ID}}
           tenant-id: ${{secrets.MY_TENANT_ID}}
@@ -91,7 +91,7 @@ jobs:
 ### Multiple secrets with names
 ```yaml
       - name: Get secrets
-        uses: nginx/ci-self-hosted/.github/actions/get-from-vault
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@refs/heads/main
         with:
           client-id: ${{secrets.MY_CLIENT_ID}}
           tenant-id: ${{secrets.MY_TENANT_ID}}
