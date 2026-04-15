@@ -684,7 +684,7 @@ jobs:
       matrix:
         os: [ freebsd-14 ]
         arch: [ amd64 ]
-        ssl: [ 'ossl31', 'ossl32', 'ossl33', 'ossl34', 'ossl35', 'bssl', 'lssl', 'qssl' ]
+        ssl: [ 'ossl34', 'ossl35', 'ossl36', 'ossl40', 'bssl', 'aws', 'lssl', 'qssl' ]
       fail-fast: false
     env:
       quictls_ver: 3.0.15+quic
@@ -704,7 +704,14 @@ jobs:
         run: |
           case "${{ matrix.ssl }}" in
             bssl)
-              git clone https://boringssl.googlesource.com/boringssl ssl
+              git clone https://github.com/google/boringssl ssl
+              mkdir ssl/build
+              cd ssl/build
+              cmake .. -DBUILD_TESTING=off
+              make -j$(nproc)
+            ;;
+            aws)
+              git clone https://github.com/aws/aws-lc ssl
               mkdir ssl/build
               cd ssl/build
               cmake .. -DBUILD_TESTING=off
@@ -717,24 +724,6 @@ jobs:
               ./configure --disable-shared
               make -sj$(nproc)
             ;;
-            ossl31)
-              git clone --depth 1 -b openssl-3.1 https://github.com/openssl/openssl ssl
-              cd ssl
-              ./config no-shared no-threads
-              make -sj$(nproc)
-            ;;
-            ossl32)
-              git clone --depth 1 -b openssl-3.2 https://github.com/openssl/openssl ssl
-              cd ssl
-              ./config no-shared no-threads
-              make -sj$(nproc)
-            ;;
-            ossl33)
-              git clone --depth 1 -b openssl-3.3 https://github.com/openssl/openssl ssl
-              cd ssl
-              ./config no-shared no-threads
-              make -sj$(nproc)
-            ;;
             ossl34)
               git clone --depth 1 -b openssl-3.4 https://github.com/openssl/openssl ssl
               cd ssl
@@ -743,6 +732,18 @@ jobs:
             ;;
             ossl35)
               git clone --depth 1 -b openssl-3.5 https://github.com/openssl/openssl ssl
+              cd ssl
+              ./config no-shared no-threads
+              make -sj$(nproc)
+            ;;
+            ossl36)
+              git clone --depth 1 -b openssl-3.6 https://github.com/openssl/openssl ssl
+              cd ssl
+              ./config no-shared no-threads
+              make -sj$(nproc)
+            ;;
+            ossl40)
+              git clone --depth 1 -b openssl-4.0 https://github.com/openssl/openssl ssl
               cd ssl
               ./config no-shared no-threads
               make -sj$(nproc)
@@ -761,6 +762,9 @@ jobs:
           case "${{ matrix.ssl }}" in
             bssl)
               LD_OPT="-L ssl/build -lstdc++"
+              ;;
+            aws)
+              LD_OPT="-L ssl/build/crypto -L ssl/build/ssl -lstdc++"
               ;;
             lssl)
               LD_OPT="-L ssl/ssl/.libs -L ssl/crypto/.libs"
