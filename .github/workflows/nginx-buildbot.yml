@@ -709,7 +709,7 @@ jobs:
               git clone https://github.com/aws/aws-lc ssl
               mkdir ssl/build
               cd ssl/build
-              cmake .. -DBUILD_TESTING=off
+              cmake .. -DBUILD_TESTING=off -DDISABLE_GO=on
               make -j$(nproc)
             ;;
             lssl)
