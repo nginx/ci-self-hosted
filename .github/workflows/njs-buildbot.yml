@@ -44,6 +44,7 @@ jobs:
           - alpine-3.21
           - alpine-3.22
           - alpine-3.23
+          - alpine-3.24
           - amazonlinux-2
           - amazonlinux-2023
           - debian-11
@@ -96,6 +97,12 @@ jobs:
               "type": "apk"
             },
             "alpine-3.23": {
+              "NGINX_CONFIGURE_CMD_APPEND": "--with-http_geoip_module --with-stream_geoip_module",
+              "CC_OPT": "$(. /usr/share/abuild/default.conf; echo $CFLAGS)",
+              "LD_OPT": "$(. /usr/share/abuild/default.conf; echo $LDFLAGS)",
+              "type": "apk"
+            },
+            "alpine-3.24": {
               "NGINX_CONFIGURE_CMD_APPEND": "--with-http_geoip_module --with-stream_geoip_module",
               "CC_OPT": "$(. /usr/share/abuild/default.conf; echo $CFLAGS)",
               "LD_OPT": "$(. /usr/share/abuild/default.conf; echo $LDFLAGS)",
