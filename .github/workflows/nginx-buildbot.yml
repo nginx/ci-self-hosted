@@ -48,6 +48,7 @@ jobs:
           - alpine-3.21
           - alpine-3.22
           - alpine-3.23
+          - alpine-3.24
           - amazonlinux-2
           - amazonlinux-2023
           - debian-11
@@ -100,6 +101,10 @@ jobs:
               "LD_OPT": "$(. /usr/share/abuild/default.conf; echo $LDFLAGS)"
             },
             "alpine-3.23": {
+              "CC_OPT": "$(. /usr/share/abuild/default.conf; echo $CFLAGS)",
+              "LD_OPT": "$(. /usr/share/abuild/default.conf; echo $LDFLAGS)"
+            },
+            "alpine-3.24": {
               "CC_OPT": "$(. /usr/share/abuild/default.conf; echo $CFLAGS)",
               "LD_OPT": "$(. /usr/share/abuild/default.conf; echo $LDFLAGS)"
             },
