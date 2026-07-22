@@ -63,7 +63,7 @@ jobs:
           - sles-16
           - ubuntu-22.04
           - ubuntu-24.04
-          - ubuntu-25.10
+          - ubuntu-26.04
         arch: [ amd64, arm64 ]
         subarch: [ '' ]
         sanitizer: [ '' ]
@@ -164,7 +164,7 @@ jobs:
               "CC_OPT": "$(DEB_BUILD_MAINT_OPTIONS=hardening=+all DEB_CFLAGS_MAINT_APPEND=-fPIC DEB_LDFLAGS_MAINT_APPEND=-Wl,--as-needed dpkg-buildflags --get CFLAGS)",
               "LD_OPT": "$(DEB_BUILD_MAINT_OPTIONS=hardening=+all DEB_CFLAGS_MAINT_APPEND=-fPIC DEB_LDFLAGS_MAINT_APPEND=-Wl,--as-needed dpkg-buildflags --get LDFLAGS)"
             },
-            "ubuntu-25.10": {
+            "ubuntu-26.04": {
               "CC_OPT": "$(DEB_BUILD_MAINT_OPTIONS=hardening=+all DEB_CFLAGS_MAINT_APPEND=-fPIC DEB_LDFLAGS_MAINT_APPEND=-Wl,--as-needed dpkg-buildflags --get CFLAGS)",
               "LD_OPT": "$(DEB_BUILD_MAINT_OPTIONS=hardening=+all DEB_CFLAGS_MAINT_APPEND=-fPIC DEB_LDFLAGS_MAINT_APPEND=-Wl,--as-needed dpkg-buildflags --get LDFLAGS)"
             },
