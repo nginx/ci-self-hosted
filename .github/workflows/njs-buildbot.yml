@@ -59,7 +59,7 @@ jobs:
           - sles-16
           - ubuntu-22.04
           - ubuntu-24.04
-          - ubuntu-25.10
+          - ubuntu-26.04
         arch: [ amd64, arm64 ]
         subarch: [ '' ]
         exclude:
@@ -200,7 +200,7 @@ jobs:
               "LD_OPT": "dpkg-buildflags --get LDFLAGS",
               "type": "deb"
             },
-            "ubuntu-25.10": {
+            "ubuntu-26.04": {
               "NGINX_CONFIGURE_CMD_APPEND": "--with-http_geoip_module --with-stream_geoip_module",
               "DEB_BUILD_MAINT_OPTIONS": "hardening=+all",
               "DEB_CFLAGS_MAINT_APPEND": "-fPIC",
