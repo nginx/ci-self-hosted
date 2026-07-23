@@ -53,8 +53,7 @@ jobs:
       - name: Detect dependency versions from misc/GNUmakefile
         run: |
           print_var() {
-            make -f misc/GNUmakefile -p 2>/dev/null \
-              | grep "^$1 = " | head -1 | sed "s/^$1 = //"
+            make -f misc/GNUmakefile --eval="print_$1: ; @echo \$($1)" "print_$1"
           }
 
           OPENSSL=$(print_var OPENSSL)
@@ -62,15 +61,32 @@ jobs:
           PCRE=$(print_var PCRE)
           OBJS=$(print_var OBJS)
 
+          # Extract just the version numbers (strip package name prefix)
+          OPENSSL_VER=$(echo "$OPENSSL" | cut -d- -f2-)
+          ZLIB_VER=$(echo "$ZLIB" | cut -d- -f2-)
+          PCRE_VER=$(echo "$PCRE" | cut -d- -f2-)
+
+          # Validate that we got values
+          for pair in "OPENSSL:$OPENSSL" "ZLIB:$ZLIB" "PCRE:$PCRE" "OBJS:$OBJS"; do
+            name="${pair%%:*}"; val="${pair#*:}"
+            if [ -z "$val" ]; then
+              echo "::error::Could not detect ${name} from misc/GNUmakefile"
+              exit 1
+            fi
+          done
+
           echo "OPENSSL=$OPENSSL" >> $GITHUB_ENV
           echo "ZLIB=$ZLIB" >> $GITHUB_ENV
           echo "PCRE=$PCRE" >> $GITHUB_ENV
           echo "OBJS=$OBJS" >> $GITHUB_ENV
+          echo "OPENSSL_VER=$OPENSSL_VER" >> $GITHUB_ENV
+          echo "ZLIB_VER=$ZLIB_VER" >> $GITHUB_ENV
+          echo "PCRE_VER=$PCRE_VER" >> $GITHUB_ENV
 
           echo "Detected versions:"
-          echo "  OPENSSL=$OPENSSL"
-          echo "  ZLIB=$ZLIB"
-          echo "  PCRE=$PCRE"
+          echo "  OPENSSL=$OPENSSL (ver: $OPENSSL_VER)"
+          echo "  ZLIB=$ZLIB (ver: $ZLIB_VER)"
+          echo "  PCRE=$PCRE (ver: $PCRE_VER)"
           echo "  OBJS=$OBJS"
 
       - name: Set up environment
@@ -95,32 +111,66 @@ jobs:
           #       and Artifactory "dev" repo for dev/test builds.
           #       Current URLs are public internet (temporary for initial testing).
 
+          download() {
+            local url="$1" file="$2" name="$3"
+            echo "Downloading ${name}..."
+            if ! curl -fSL -o "$file" "$url"; then
+              echo "::error::Failed to download ${name} from ${url}"
+              exit 1
+            fi
+            tar xzf "$file" && rm "$file"
+          }
+
+          cd ${{ env.OBJS }}/lib
+
           # OpenSSL
-          openssl_ver=$(echo "${{ env.OPENSSL }}" | sed 's/openssl-//')
-          curl -sLO "https://github.com/openssl/openssl/releases/download/openssl-${openssl_ver}/openssl-${openssl_ver}.tar.gz"
-          tar -C ${{ env.OBJS }}/lib -xzf "openssl-${openssl_ver}.tar.gz"
-          mv "${{ env.OBJS }}/lib/openssl-${openssl_ver}" "${{ env.OBJS }}/lib/${{ env.OPENSSL }}"
+          download \
+            "https://github.com/openssl/openssl/releases/download/openssl-${{ env.OPENSSL_VER }}/openssl-${{ env.OPENSSL_VER }}.tar.gz" \
+            openssl.tar.gz "OpenSSL ${{ env.OPENSSL_VER }}"
 
           # zlib
-          zlib_ver=$(echo "${{ env.ZLIB }}" | sed 's/zlib-//')
-          curl -sLO "https://github.com/madler/zlib/releases/download/v${zlib_ver}/zlib-${zlib_ver}.tar.gz"
-          tar -C ${{ env.OBJS }}/lib -xzf "zlib-${zlib_ver}.tar.gz"
+          download \
+            "https://github.com/madler/zlib/releases/download/v${{ env.ZLIB_VER }}/zlib-${{ env.ZLIB_VER }}.tar.gz" \
+            zlib.tar.gz "zlib ${{ env.ZLIB_VER }}"
 
           # PCRE2
-          pcre_ver=$(echo "${{ env.PCRE }}" | sed 's/pcre2-//')
-          curl -sLO "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-${pcre_ver}/pcre2-${pcre_ver}.tar.gz"
-          tar -C ${{ env.OBJS }}/lib -xzf "pcre2-${pcre_ver}.tar.gz"
+          download \
+            "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-${{ env.PCRE_VER }}/pcre2-${{ env.PCRE_VER }}.tar.gz" \
+            pcre2.tar.gz "PCRE2 ${{ env.PCRE_VER }}"
 
+          # Fix missing inttypes.h header for MSVC compatibility
+          echo '#include <stdint.h>' > "${{ env.PCRE }}/src/inttypes.h"
+
+          cd ../..
           echo "Dependencies downloaded and unpacked:"
           ls -la ${{ env.OBJS }}/lib/
 
-      - name: Configure and build nginx
+      - name: Verify dependencies
+        run: |
+          [ -d "${{ env.OBJS }}/lib/${{ env.OPENSSL }}" ]                    || { echo "::error::OpenSSL dir not found"; exit 1; }
+          [ -f "${{ env.OBJS }}/lib/${{ env.ZLIB }}/zlib.h" ]               || { echo "::error::zlib.h not found"; exit 1; }
+          [ -f "${{ env.OBJS }}/lib/${{ env.PCRE }}/src/pcre2.h.generic" ]   || { echo "::error::PCRE2 headers not found"; exit 1; }
+          [ -f "${{ env.OBJS }}/lib/${{ env.PCRE }}/src/inttypes.h" ]        || { echo "::error::PCRE2 inttypes.h fix missing"; exit 1; }
+          echo "All dependencies verified"
+
+      - name: Configure nginx
         shell: cmd
         run: |
           @echo on
           call "%VCVARSALL%" %VCARCH%
           bash.exe -c "make -f misc/GNUmakefile win32 CC=cl OBJS=%OBJS%"
+
+      - name: Compile nginx
+        shell: cmd
+        run: |
+          @echo on
+          call "%VCVARSALL%" %VCARCH%
           nmake -f %OBJS%\Makefile
+
+      - name: Verify build
+        run: |
+          [ -f "${{ env.OBJS }}/nginx.exe" ] || { echo "::error::nginx.exe was not created"; exit 1; }
+          ls -lh ${{ env.OBJS }}/nginx.exe
 
       - name: Run tests
         shell: cmd
@@ -140,8 +190,11 @@ jobs:
             | sed -e 's/^.*"\(.*\)".*/\1/')
           echo "NGINX_VER=$NGINX_VER" >> $GITHUB_ENV
 
+          [ -f "nginx-${NGINX_VER}.zip" ] || { echo "::error::ZIP not created"; exit 1; }
+
           echo "ZIP created:"
           ls -la nginx-${NGINX_VER}.zip
+          echo "- ZIP: \`nginx-${NGINX_VER}.zip\` (\`$(ls -lh "nginx-${NGINX_VER}.zip" | awk '{print $5}')\`)" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload ZIP as workflow artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
