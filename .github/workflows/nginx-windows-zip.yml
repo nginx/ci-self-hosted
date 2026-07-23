@@ -8,7 +8,7 @@ permissions:
 
 jobs:
   check-if-allowed:
-    runs-on: ubuntu-24.04
+    runs-on: [ ubuntu-latest ]
     steps:
       - name: Check if we're in the allowed environment
         run: |
@@ -28,10 +28,16 @@ jobs:
           fi
           exit 0
 
-  build-zip:
-    name: Build Windows ZIP
+  build-windows:
+    name: Build Windows binary
     runs-on: windows-2022-amd64
     needs: check-if-allowed
+    outputs:
+      nginx_ver: ${{ steps.version.outputs.nginx_ver }}
+      openssl_ver: ${{ steps.deps.outputs.openssl_ver }}
+      zlib_ver: ${{ steps.deps.outputs.zlib_ver }}
+      pcre_ver: ${{ steps.deps.outputs.pcre_ver }}
+      objs: ${{ steps.deps.outputs.objs }}
     defaults:
       run:
         shell: C:\Tools\msys64\msys2_shell.cmd -defterm -no-start -where . -full-path -shell bash.exe -Eeo pipefail -x '{0}'
@@ -52,7 +58,17 @@ jobs:
         run: |
           echo MSYSTEM=MINGW64 >> $GITHUB_ENV
 
+      - name: Extract nginx version
+        id: version
+        run: |
+          NGINX_VER=$(grep 'define NGINX_VERSION' src/core/nginx.h \
+            | sed -e 's/^.*"\(.*\)".*/\1/')
+          echo "nginx_ver=$NGINX_VER" >> "$GITHUB_OUTPUT"
+          echo "NGINX_VER=$NGINX_VER" >> $GITHUB_ENV
+          echo "nginx version: $NGINX_VER"
+
       - name: Detect dependency versions from misc/GNUmakefile
+        id: deps
         run: |
           print_var() {
             make -f misc/GNUmakefile --eval="print_$1: ; @echo \$($1)" "print_$1"
@@ -84,6 +100,12 @@ jobs:
           echo "OPENSSL_VER=$OPENSSL_VER" >> $GITHUB_ENV
           echo "ZLIB_VER=$ZLIB_VER" >> $GITHUB_ENV
           echo "PCRE_VER=$PCRE_VER" >> $GITHUB_ENV
+
+          # Set outputs for the create-zip job
+          echo "openssl_ver=$OPENSSL_VER" >> "$GITHUB_OUTPUT"
+          echo "zlib_ver=$ZLIB_VER" >> "$GITHUB_OUTPUT"
+          echo "pcre_ver=$PCRE_VER" >> "$GITHUB_OUTPUT"
+          echo "objs=$OBJS" >> "$GITHUB_OUTPUT"
 
           echo "Detected versions:"
           echo "  OPENSSL=$OPENSSL (ver: $OPENSSL_VER)"
@@ -173,6 +195,7 @@ jobs:
         run: |
           [ -f "${{ env.OBJS }}/nginx.exe" ] || { echo "::error::nginx.exe was not created"; exit 1; }
           ls -lh ${{ env.OBJS }}/nginx.exe
+          echo "- nginx.exe: \`$(ls -lh ${{ env.OBJS }}/nginx.exe | awk '{print $5}')\`" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Run tests
         shell: cmd
@@ -184,14 +207,80 @@ jobs:
           TEST_NGINX_VERBOSE: 1
           PERL5LIB: "${{ github.workspace }}\\nginx-tests\\lib"
 
-      - name: Create ZIP package
+      - name: Upload nginx.exe
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: windows-binary
+          path: ${{ env.OBJS }}/nginx.exe
+          retention-days: 5
+
+  create-zip:
+    name: Create ZIP package
+    needs: build-windows
+    runs-on: ubuntu-24.04-amd64
+
+    steps:
+      - name: Check out nginx sources
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4.1.1
+        with:
+          repository: nginx/nginx
+
+      - name: Download nginx.exe
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
+        with:
+          name: windows-binary
+          path: ${{ needs.build-windows.outputs.objs }}/
+
+      - name: Install build tools
         run: |
-          make -f misc/GNUmakefile zip OBJS=${{ env.OBJS }}
+          sudo apt-get update
+          sudo apt-get install -y \
+            libxml2-utils \
+            xsltproc
 
-          NGINX_VER=$(grep 'define NGINX_VERSION' src/core/nginx.h \
-            | sed -e 's/^.*"\(.*\)".*/\1/')
-          echo "NGINX_VER=$NGINX_VER" >> $GITHUB_ENV
+      - name: Download dependencies (for license files)
+        run: |
+          download() {
+            local url="$1" file="$2" name="$3"
+            echo "Downloading ${name}..."
+            if ! curl -fSL -o "$file" "$url"; then
+              echo "::error::Failed to download ${name} from ${url}"
+              exit 1
+            fi
+            file "$file" | grep -q "gzip" || { echo "::error::${name} is not a valid gzip archive"; exit 1; }
+            tar xzf "$file" && rm "$file"
+          }
 
+          OV="${{ needs.build-windows.outputs.openssl_ver }}"
+          ZV="${{ needs.build-windows.outputs.zlib_ver }}"
+          PV="${{ needs.build-windows.outputs.pcre_ver }}"
+          OBJS="${{ needs.build-windows.outputs.objs }}"
+
+          mkdir -p ${OBJS}/lib && cd ${OBJS}/lib
+
+          # TODO: Switch these URLs to Artifactory when available
+          download \
+            "https://github.com/openssl/openssl/releases/download/openssl-${OV}/openssl-${OV}.tar.gz" \
+            openssl.tar.gz "OpenSSL ${OV}"
+
+          download \
+            "https://github.com/madler/zlib/releases/download/v${ZV}/zlib-${ZV}.tar.gz" \
+            zlib.tar.gz "zlib ${ZV}"
+
+          download \
+            "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-${PV}/pcre2-${PV}.tar.gz" \
+            pcre2.tar.gz "PCRE2 ${PV}"
+
+      - name: Create ZIP
+        run: |
+          OBJS="${{ needs.build-windows.outputs.objs }}"
+
+          # Fix BSD sed syntax for GNU/Linux: sed -i '' → sed -i
+          sed -i "s/sed -i '' /sed -i /" misc/GNUmakefile
+
+          make -f misc/GNUmakefile zip OBJS=${OBJS}
+
+          NGINX_VER="${{ needs.build-windows.outputs.nginx_ver }}"
           [ -f "nginx-${NGINX_VER}.zip" ] || { echo "::error::ZIP not created"; exit 1; }
 
           echo "ZIP created:"
@@ -201,15 +290,15 @@ jobs:
       - name: Upload ZIP as workflow artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
-          name: nginx-${{ env.NGINX_VER }}-windows-zip
-          path: nginx-${{ env.NGINX_VER }}.zip
+          name: nginx-${{ needs.build-windows.outputs.nginx_ver }}-windows-zip
+          path: nginx-${{ needs.build-windows.outputs.nginx_ver }}.zip
           retention-days: 5
 
       # TODO: Add F5 signing endpoint integration
       # - name: Sign ZIP via F5 endpoint
       #   run: |
       #     # curl to F5 signing API
-      #     # Upload nginx-${{ env.NGINX_VER }}.zip
+      #     # Upload nginx-${{ needs.build-windows.outputs.nginx_ver }}.zip
       #     # Download signed ZIP
 
       # TODO: Add preview location upload
