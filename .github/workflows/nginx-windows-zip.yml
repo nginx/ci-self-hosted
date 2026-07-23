@@ -39,6 +39,8 @@ jobs:
     steps:
       - name: Check out nginx sources
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4.1.1
+        with:
+          repository: nginx/nginx
 
       - name: Check out nginx tests
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4.1.1
