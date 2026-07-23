@@ -1,1 +1,169 @@
+name: nginx-windows-zip
 
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  check-if-allowed:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check if we're in the allowed environment
+        run: |
+          org_found=0
+          event_found=0
+          ALLOWED_ORGS="nginx nginxinc"
+          ALLOWED_EVENTS="push workflow_dispatch"
+          for org in $ALLOWED_ORGS; do
+            if [ "$org" == "$GITHUB_REPOSITORY_OWNER" ]; then org_found=1; fi
+          done
+          for event in $ALLOWED_EVENTS; do
+            if [ "$event" == "$GITHUB_EVENT_NAME" ]; then event_found=1; fi
+          done
+          if [ $org_found$event_found -ne 11 ]; then
+            echo "Repository owner or event are not explicitly allowed to use this workflow: $GITHUB_REPOSITORY_OWNER, $GITHUB_EVENT_NAME"
+            exit 1
+          fi
+          exit 0
+
+  build-zip:
+    name: Build Windows ZIP
+    runs-on: windows-2022-amd64
+    needs: check-if-allowed
+    defaults:
+      run:
+        shell: C:\Tools\msys64\msys2_shell.cmd -defterm -no-start -where . -full-path -shell bash.exe -Eeo pipefail -x '{0}'
+
+    steps:
+      - name: Check out nginx sources
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4.1.1
+
+      - name: Check out nginx tests
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4.1.1
+        with:
+          repository: nginx/nginx-tests
+          path: nginx-tests
+
+      - name: Set MSYSTEM
+        run: |
+          echo MSYSTEM=MINGW64 >> $GITHUB_ENV
+
+      - name: Detect dependency versions from misc/GNUmakefile
+        run: |
+          print_var() {
+            make -f misc/GNUmakefile -p 2>/dev/null \
+              | grep "^$1 = " | head -1 | sed "s/^$1 = //"
+          }
+
+          OPENSSL=$(print_var OPENSSL)
+          ZLIB=$(print_var ZLIB)
+          PCRE=$(print_var PCRE)
+          OBJS=$(print_var OBJS)
+
+          echo "OPENSSL=$OPENSSL" >> $GITHUB_ENV
+          echo "ZLIB=$ZLIB" >> $GITHUB_ENV
+          echo "PCRE=$PCRE" >> $GITHUB_ENV
+          echo "OBJS=$OBJS" >> $GITHUB_ENV
+
+          echo "Detected versions:"
+          echo "  OPENSSL=$OPENSSL"
+          echo "  ZLIB=$ZLIB"
+          echo "  PCRE=$PCRE"
+          echo "  OBJS=$OBJS"
+
+      - name: Set up environment
+        run: |
+          echo "VCVARSALL=$('C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe' -products \* -latest -property installationPath)\\VC\\Auxiliary\\Build\\vcvarsall.bat" >> $GITHUB_ENV
+          echo "VCARCH=x64" >> $GITHUB_ENV
+          echo "CL=/MP" >> $GITHUB_ENV
+
+          echo 'TEMP=C:\TEMP' >> $GITHUB_ENV
+          echo 'TMP=C:\TEMP' >> $GITHUB_ENV
+          echo 'TMPDIR=C:\TEMP' >> $GITHUB_ENV
+
+          mkdir -p C:/TEMP/
+          mkdir -p C:/tmp/
+          mkdir -p t/
+
+      - name: Download and unpack dependencies
+        run: |
+          mkdir -p ${{ env.OBJS }}/lib
+
+          # TODO: Switch these URLs to Artifactory "prod" repo for release builds
+          #       and Artifactory "dev" repo for dev/test builds.
+          #       Current URLs are public internet (temporary for initial testing).
+
+          # OpenSSL
+          openssl_ver=$(echo "${{ env.OPENSSL }}" | sed 's/openssl-//')
+          curl -sLO "https://github.com/openssl/openssl/releases/download/openssl-${openssl_ver}/openssl-${openssl_ver}.tar.gz"
+          tar -C ${{ env.OBJS }}/lib -xzf "openssl-${openssl_ver}.tar.gz"
+          mv "${{ env.OBJS }}/lib/openssl-${openssl_ver}" "${{ env.OBJS }}/lib/${{ env.OPENSSL }}"
+
+          # zlib
+          zlib_ver=$(echo "${{ env.ZLIB }}" | sed 's/zlib-//')
+          curl -sLO "https://github.com/madler/zlib/releases/download/v${zlib_ver}/zlib-${zlib_ver}.tar.gz"
+          tar -C ${{ env.OBJS }}/lib -xzf "zlib-${zlib_ver}.tar.gz"
+
+          # PCRE2
+          pcre_ver=$(echo "${{ env.PCRE }}" | sed 's/pcre2-//')
+          curl -sLO "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-${pcre_ver}/pcre2-${pcre_ver}.tar.gz"
+          tar -C ${{ env.OBJS }}/lib -xzf "pcre2-${pcre_ver}.tar.gz"
+
+          echo "Dependencies downloaded and unpacked:"
+          ls -la ${{ env.OBJS }}/lib/
+
+      - name: Configure and build nginx
+        shell: cmd
+        run: |
+          @echo on
+          call "%VCVARSALL%" %VCARCH%
+          bash.exe -c "make -f misc/GNUmakefile win32 CC=cl OBJS=%OBJS%"
+          nmake -f %OBJS%\Makefile
+
+      - name: Run tests
+        shell: cmd
+        working-directory: nginx-tests
+        run: |
+          prove --state=save ../t . || prove -v --state=failed
+        env:
+          TEST_NGINX_BINARY: "${{ github.workspace }}\\${{ env.OBJS }}\\nginx.exe"
+          TEST_NGINX_VERBOSE: 1
+          PERL5LIB: "${{ github.workspace }}\\nginx-tests\\lib"
+
+      - name: Create ZIP package
+        run: |
+          make -f misc/GNUmakefile zip OBJS=${{ env.OBJS }}
+
+          NGINX_VER=$(grep 'define NGINX_VERSION' src/core/nginx.h \
+            | sed -e 's/^.*"\(.*\)".*/\1/')
+          echo "NGINX_VER=$NGINX_VER" >> $GITHUB_ENV
+
+          echo "ZIP created:"
+          ls -la nginx-${NGINX_VER}.zip
+
+      - name: Upload ZIP as workflow artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: nginx-${{ env.NGINX_VER }}-windows-zip
+          path: nginx-${{ env.NGINX_VER }}.zip
+          retention-days: 5
+
+      # TODO: Add F5 signing endpoint integration
+      # - name: Sign ZIP via F5 endpoint
+      #   run: |
+      #     # curl to F5 signing API
+      #     # Upload nginx-${{ env.NGINX_VER }}.zip
+      #     # Download signed ZIP
+
+      # TODO: Add preview location upload
+      # - name: Upload signed ZIP to preview location
+      #   run: |
+      #     # Upload to F5 preview/staging location
+
+      # TODO: Add GitHub Releases upload (for release tags)
+      # - name: Upload to GitHub Releases
+      #   if: startsWith(github.ref, 'refs/tags/release-')
+      #   run: |
+      #     # Upload signed ZIP to GitHub Releases page
