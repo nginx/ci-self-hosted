@@ -257,6 +257,13 @@ jobs:
             NGINX_CONFIGURE_ADD_STD=$(echo $ENV_JSON | jq -r '.NGINX_CONFIGURE_ADD_STD')
             NGINX_CONFIGURE_ADD_STD_MODULES=$(echo $ENV_JSON | jq -r '.NGINX_CONFIGURE_ADD_STD_MODULES')
             NGINX_CONFIGURE_ADD_COMMON=$(echo $ENV_JSON | jq -r '.NGINX_CONFIGURE_ADD_COMMON')
+
+            case "$GITHUB_REF" in
+              refs/heads/main|refs/heads/master)
+                NGINX_CONFIGURE_ADD_COMMON="$NGINX_CONFIGURE_ADD_COMMON --with-control-api --with-http_json_module"
+                ;;
+            esac
+
             NGINX_CONFIGURE_ADD_GEOIP=$(echo $ENV_JSON | jq -r '.NGINX_CONFIGURE_ADD_GEOIP')
             NGINX_CONFIGURE_ADD_GEOIP_MODULES=$(echo $ENV_JSON | jq -r '.NGINX_CONFIGURE_ADD_GEOIP_MODULES')
             NGINX_CONFIGURE_ADD_AIO=$(echo $ENV_JSON | jq -r '.NGINX_CONFIGURE_ADD_AIO')
@@ -621,8 +628,16 @@ jobs:
 
       - name: Configure and build package-max # TODO: don't duplicate the package-max configure params, but rather construct them from the other jobs?
         run: |
+          NGINX_CONFIGURE_ADD_MAINLINE_FEATURES=""
+          case "$GITHUB_REF" in
+            refs/heads/main|refs/heads/master)
+              NGINX_CONFIGURE_ADD_MAINLINE_FEATURES="--with-control-api --with-http_json_module"
+              ;;
+          esac
+
           CC=clang-14 ./auto/configure \
                         --prefix=/tmp \
+                        $NGINX_CONFIGURE_ADD_MAINLINE_FEATURES \
                         --with-http_ssl_module \
                         --with-http_realip_module \
                         --with-http_addition_module \
@@ -876,6 +891,12 @@ jobs:
           NGINX_CONFIGURE_ADD_STATIC=$(echo $ENV_JSON | jq -r '.NGINX_CONFIGURE_ADD_STATIC')
           NGINX_CONFIGURE_ADD_DYNAMIC=$(echo $ENV_JSON | jq -r '.NGINX_CONFIGURE_ADD_DYNAMIC')
           NGINX_CONFIGURE_OPENSSL_OPT=$(echo $ENV_JSON | jq -r '.NGINX_CONFIGURE_OPENSSL_OPT')
+
+          case "$GITHUB_REF" in
+            refs/heads/main|refs/heads/master)
+              NGINX_CONFIGURE_CMD_WIN="$NGINX_CONFIGURE_CMD_WIN --with-control-api --with-http_json_module"
+              ;;
+          esac
 
           echo NGINX_CONFIGURE_CMD_WIN="$NGINX_CONFIGURE_CMD_WIN" >> $GITHUB_ENV
           echo NGINX_CONFIGURE_CC_MSVC="$NGINX_CONFIGURE_CC_MSVC" >> $GITHUB_ENV
