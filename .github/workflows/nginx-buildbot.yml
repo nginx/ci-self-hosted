@@ -1,6 +1,7 @@
 name: buildbot
 
 on:
+  # The caller must use "secrets: inherit" and grant "id-token: write".
   workflow_call:
 
 env:
@@ -799,6 +800,9 @@ jobs:
     name: windows-2022, ${{ matrix.toolchain }}, ${{ matrix.env }}
     runs-on: windows-2022-amd64
     needs: check-if-allowed
+    permissions:
+      contents: read
+      id-token: write
     strategy:
       matrix:
         include:
@@ -813,9 +817,6 @@ jobs:
       run:
         shell: C:\Tools\msys64\msys2_shell.cmd -defterm -no-start -where . -full-path -shell bash.exe -Eeo pipefail -x '{0}'
     env:
-      pcre2_ver: 10.39
-      zlib_ver: 1.3.1
-      openssl3_ver: 3.0.15
       openssl_ver: 1.1.1w
 
     steps:
@@ -828,9 +829,59 @@ jobs:
           repository: nginx/nginx-tests
           path: nginx-tests
 
+      - name: Get access secrets from Azure
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
+        with:
+          client-id: ${{ secrets.NGINX_OSS_CLIENT_ID }}
+          tenant-id: ${{ secrets.NGINX_OSS_TENANT_ID }}
+          vault-name: ${{ secrets.NGINX_COMMON_VAULT_NAME }}
+          secret-names: "artifactory-service-user-nginx, artifactory-service-user-nginx-token"
+          env-names: "ARTIFACTORY_USER, ARTIFACTORY_TOKEN"
+
+      - name: Get repo secrets from Azure
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
+        with:
+          client-id: ${{ secrets.NGINX_OSS_CLIENT_ID }}
+          tenant-id: ${{ secrets.NGINX_OSS_TENANT_ID }}
+          vault-name: ${{ secrets.NGINX_OSS_VAULT_NAME }}
+          secret-names: "artifactory-repo-github-packages-dev"
+          env-names: "ARTIFACTORY_URL"
+
       - name: Set MSYSTEM
         run: |
           echo MSYSTEM=MINGW64 >> $GITHUB_ENV
+
+      - name: Detect dependency versions from misc/GNUmakefile
+        run: |
+          print_var() {
+            make -f misc/GNUmakefile --eval="print_$1: ; @echo \$($1)" "print_$1"
+          }
+
+          OPENSSL=$(print_var OPENSSL)
+          ZLIB=$(print_var ZLIB)
+          PCRE=$(print_var PCRE)
+
+          # Validate that we got values
+          for pair in "OPENSSL:$OPENSSL" "ZLIB:$ZLIB" "PCRE:$PCRE"; do
+            name="${pair%%:*}"; val="${pair#*:}"
+            if [ -z "$val" ]; then
+              echo "::error::Could not detect ${name} from misc/GNUmakefile"
+              exit 1
+            fi
+          done
+
+          OPENSSL3_VER=$(echo "$OPENSSL" | cut -d- -f2-)
+          ZLIB_VER=$(echo "$ZLIB" | cut -d- -f2-)
+          PCRE2_VER=$(echo "$PCRE" | cut -d- -f2-)
+
+          echo openssl3_ver="$OPENSSL3_VER" >> $GITHUB_ENV
+          echo zlib_ver="$ZLIB_VER" >> $GITHUB_ENV
+          echo pcre2_ver="$PCRE2_VER" >> $GITHUB_ENV
+
+          echo "Detected versions:"
+          echo "  OPENSSL=$OPENSSL (ver: $OPENSSL3_VER)"
+          echo "  ZLIB=$ZLIB (ver: $ZLIB_VER)"
+          echo "  PCRE=$PCRE (ver: $PCRE2_VER)"
 
       - name: Set the defaults and set up environment
         run: |
@@ -910,21 +961,55 @@ jobs:
         run: |
           mkdir objs
           mkdir objs/lib
-          curl -sLO https://github.com/PCRE2Project/pcre2/releases/download/pcre2-${{ env.pcre2_ver }}/pcre2-${{ env.pcre2_ver }}.tar.gz
-          tar -C objs/lib --transform 's/pcre2-${{ env.pcre2_ver }}/pcre/' -xzf ./pcre2-${{ env.pcre2_ver }}.tar.gz
+
+          NETRC=.netrc
+          trap 'rm -f "$NETRC"' EXIT
+
+          ARTIFACTORY_HOST=${ARTIFACTORY_URL#*://}
+          ARTIFACTORY_HOST=${ARTIFACTORY_HOST%%/*}
+          ARTIFACTORY_HOST=${ARTIFACTORY_HOST%%:*}
+          printf 'machine %s login %s password %s\n' \
+            "$ARTIFACTORY_HOST" "$ARTIFACTORY_USER" "$ARTIFACTORY_TOKEN" > "$NETRC"
+
+          fetch() {
+            local tarball="${1##*/}"
+            echo "Fetching $tarball from Artifactory..."
+            if ! curl --netrc-file "$NETRC" \
+                      --fail --location --silent --show-error \
+                      --connect-timeout 30 \
+                      --retry 3 --retry-delay 5 --retry-connrefused \
+                      --output "$tarball" "${ARTIFACTORY_URL%/}/$1"; then
+              echo "::error::Failed to fetch $tarball from Artifactory (path: $1)"
+              exit 1
+            fi
+            if ! gzip -t "$tarball" 2>/dev/null; then
+              echo "::error::$tarball is not a valid gzip archive (path: $1), most likely an error page"
+              exit 1
+            fi
+            tar -C objs/lib --transform "s/$2/$3/" -xzf "./$tarball"
+          }
+
+          fetch "PCRE2Project/pcre2/releases/download/pcre2-${pcre2_ver}/pcre2-${pcre2_ver}.tar.gz" \
+                "pcre2-${pcre2_ver}" pcre
           echo '#include <stdint.h>' > objs/lib/pcre/src/inttypes.h
-          curl -sLO https://zlib.net/fossils/zlib-${{ env.zlib_ver }}.tar.gz
-          tar -C objs/lib --transform 's/zlib-${{ env.zlib_ver }}/zlib/' -xzf ./zlib-${{ env.zlib_ver }}.tar.gz
+
+          fetch "madler/zlib/releases/download/v${zlib_ver}/zlib-${zlib_ver}.tar.gz" \
+                "zlib-${zlib_ver}" zlib
+
           case "${{ matrix.toolchain }}" in
             msvc)
-              curl -sLO https://github.com/openssl/openssl/releases/download/openssl-${{ env.openssl3_ver }}/openssl-${{ env.openssl3_ver }}.tar.gz
-              tar -C objs/lib --transform 's/openssl-${{ env.openssl3_ver }}/openssl/' -xzf ./openssl-${{ env.openssl3_ver }}.tar.gz
+              ossl_ver="${openssl3_ver}"
+              ossl_tag="openssl-${ossl_ver}"
             ;;
             mingw*)
-              curl -sLO https://github.com/openssl/openssl/releases/download/OpenSSL_1_1_1w/openssl-${{ env.openssl_ver }}.tar.gz
-              tar -C objs/lib --transform 's/openssl-${{ env.openssl_ver }}/openssl/' -xzf ./openssl-${{ env.openssl_ver }}.tar.gz
+              ossl_ver="${openssl_ver}"
+              # 1.1.1 releases are tagged OpenSSL_1_1_1w and alike
+              ossl_tag="OpenSSL_$(echo "${ossl_ver}" | tr . _)"
             ;;
           esac
+          fetch "openssl/openssl/releases/download/${ossl_tag}/openssl-${ossl_ver}.tar.gz" \
+                "openssl-${ossl_ver}" openssl
+
           cp -R objs objs.deps
 
       - name: Configure and build
