@@ -815,7 +815,7 @@ jobs:
       fail-fast: false
     defaults:
       run:
-        shell: C:\Tools\msys64\msys2_shell.cmd -defterm -no-start -where . -full-path -shell bash.exe -Eeo pipefail -x '{0}'
+        shell: C:\Tools\msys64\msys2_shell.cmd -defterm -no-start -where . -full-path -shell bash.exe -Eeo pipefail '{0}'
     env:
       openssl_ver: 1.1.1w
 
