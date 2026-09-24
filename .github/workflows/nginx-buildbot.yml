@@ -894,7 +894,7 @@ jobs:
 
           case "$GITHUB_REF" in
             refs/heads/main|refs/heads/master)
-              NGINX_CONFIGURE_CMD_WIN="$NGINX_CONFIGURE_CMD_WIN --with-control-api --with-http_json_module"
+              NGINX_CONFIGURE_CMD_WIN="$NGINX_CONFIGURE_CMD_WIN --with-http_json_module"
               ;;
           esac
 
