@@ -1,6 +1,7 @@
 name: nginx-windows-zip
 
 on:
+  # The caller must use "secrets: inherit" and grant "id-token: write".
   workflow_call:
 
 permissions:
@@ -32,11 +33,14 @@ jobs:
     name: Build Windows binary
     runs-on: windows-2022-amd64
     needs: check-if-allowed
+    permissions:
+      contents: read
+      id-token: write
     outputs:
       nginx_ver: ${{ steps.version.outputs.nginx_ver }}
-      openssl_ver: ${{ steps.deps.outputs.openssl_ver }}
-      zlib_ver: ${{ steps.deps.outputs.zlib_ver }}
-      pcre_ver: ${{ steps.deps.outputs.pcre_ver }}
+      openssl: ${{ steps.deps.outputs.openssl }}
+      zlib: ${{ steps.deps.outputs.zlib }}
+      pcre: ${{ steps.deps.outputs.pcre }}
       objs: ${{ steps.deps.outputs.objs }}
     defaults:
       run:
@@ -53,6 +57,24 @@ jobs:
         with:
           repository: nginx/nginx-tests
           path: nginx-tests
+
+      - name: Get access secrets from Azure
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
+        with:
+          client-id: ${{ secrets.NGINX_OSS_CLIENT_ID }}
+          tenant-id: ${{ secrets.NGINX_OSS_TENANT_ID }}
+          vault-name: ${{ secrets.NGINX_COMMON_VAULT_NAME }}
+          secret-names: "artifactory-service-user-nginx, artifactory-service-user-nginx-token"
+          env-names: "ARTIFACTORY_USER, ARTIFACTORY_TOKEN"
+
+      - name: Get repo secrets from Azure
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
+        with:
+          client-id: ${{ secrets.NGINX_OSS_CLIENT_ID }}
+          tenant-id: ${{ secrets.NGINX_OSS_TENANT_ID }}
+          vault-name: ${{ secrets.NGINX_OSS_VAULT_NAME }}
+          secret-names: "artifactory-repo-github-packages-dev"
+          env-names: "ARTIFACTORY_URL"
 
       - name: Set MSYSTEM
         run: |
@@ -102,9 +124,9 @@ jobs:
           echo "PCRE_VER=$PCRE_VER" >> $GITHUB_ENV
 
           # Set outputs for the create-zip job
-          echo "openssl_ver=$OPENSSL_VER" >> "$GITHUB_OUTPUT"
-          echo "zlib_ver=$ZLIB_VER" >> "$GITHUB_OUTPUT"
-          echo "pcre_ver=$PCRE_VER" >> "$GITHUB_OUTPUT"
+          echo "openssl=$OPENSSL" >> "$GITHUB_OUTPUT"
+          echo "zlib=$ZLIB" >> "$GITHUB_OUTPUT"
+          echo "pcre=$PCRE" >> "$GITHUB_OUTPUT"
           echo "objs=$OBJS" >> "$GITHUB_OUTPUT"
 
           echo "Detected versions:"
@@ -131,41 +153,40 @@ jobs:
         run: |
           mkdir -p ${{ env.OBJS }}/lib
 
-          # TODO: Switch these URLs to Artifactory "prod" repo for release builds
-          #       and Artifactory "dev" repo for dev/test builds.
-          #       Current URLs are public internet (temporary for initial testing).
+          NETRC=.netrc
+          trap 'rm -f "$NETRC"' EXIT
 
-          download() {
-            local url="$1" file="$2" name="$3"
-            echo "Downloading ${name}..."
-            if ! curl -fSL -o "$file" "$url"; then
-              echo "::error::Failed to download ${name} from ${url}"
+          ARTIFACTORY_HOST=${ARTIFACTORY_URL#*://}
+          ARTIFACTORY_HOST=${ARTIFACTORY_HOST%%/*}
+          ARTIFACTORY_HOST=${ARTIFACTORY_HOST%%:*}
+          printf 'machine %s login %s password %s\n' \
+            "$ARTIFACTORY_HOST" "$ARTIFACTORY_USER" "$ARTIFACTORY_TOKEN" > "$NETRC"
+
+          fetch() {
+            local tarball="${1##*/}"
+            echo "Fetching $tarball from Artifactory..."
+            if ! curl --netrc-file "$NETRC" \
+                      --fail --location --silent --show-error \
+                      --connect-timeout 30 \
+                      --retry 3 --retry-delay 5 --retry-connrefused \
+                      --output "$tarball" "${ARTIFACTORY_URL%/}/$1"; then
+              echo "::error::Failed to fetch $tarball from Artifactory (path: $1)"
               exit 1
             fi
-            tar xzf "$file" && rm "$file"
+            if ! gzip -t "$tarball" 2>/dev/null; then
+              echo "::error::$tarball is not a valid gzip archive (path: $1), most likely an error page"
+              exit 1
+            fi
+            tar -C ${{ env.OBJS }}/lib -xzf "./$tarball"
           }
 
-          cd ${{ env.OBJS }}/lib
+          fetch "PCRE2Project/pcre2/releases/download/pcre2-${{ env.PCRE_VER }}/pcre2-${{ env.PCRE_VER }}.tar.gz"
+          echo '#include <stdint.h>' > ${{ env.OBJS }}/lib/${{ env.PCRE }}/src/inttypes.h
 
-          # OpenSSL
-          download \
-            "https://github.com/openssl/openssl/releases/download/openssl-${{ env.OPENSSL_VER }}/openssl-${{ env.OPENSSL_VER }}.tar.gz" \
-            openssl.tar.gz "OpenSSL ${{ env.OPENSSL_VER }}"
+          fetch "madler/zlib/releases/download/v${{ env.ZLIB_VER }}/zlib-${{ env.ZLIB_VER }}.tar.gz"
 
-          # zlib
-          download \
-            "https://github.com/madler/zlib/releases/download/v${{ env.ZLIB_VER }}/zlib-${{ env.ZLIB_VER }}.tar.gz" \
-            zlib.tar.gz "zlib ${{ env.ZLIB_VER }}"
+          fetch "openssl/openssl/releases/download/openssl-${{ env.OPENSSL_VER }}/openssl-${{ env.OPENSSL_VER }}.tar.gz"
 
-          # PCRE2
-          download \
-            "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-${{ env.PCRE_VER }}/pcre2-${{ env.PCRE_VER }}.tar.gz" \
-            pcre2.tar.gz "PCRE2 ${{ env.PCRE_VER }}"
-
-          # Fix missing inttypes.h header for MSVC compatibility
-          echo '#include <stdint.h>' > "${{ env.PCRE }}/src/inttypes.h"
-
-          cd ../..
           echo "Dependencies downloaded and unpacked:"
           ls -la ${{ env.OBJS }}/lib/
 
@@ -207,11 +228,15 @@ jobs:
           TEST_NGINX_VERBOSE: 1
           PERL5LIB: "${{ github.workspace }}\\nginx-tests\\lib"
 
-      - name: Upload nginx.exe
+      - name: Upload build artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
-          name: windows-binary
-          path: ${{ env.OBJS }}/nginx.exe
+          name: windows-build
+          path: |
+            ${{ env.OBJS }}/nginx.exe
+            ${{ env.OBJS }}/lib/${{ env.OPENSSL }}/LICENSE.txt
+            ${{ env.OBJS }}/lib/${{ env.PCRE }}/LICENCE.md
+            ${{ env.OBJS }}/lib/${{ env.ZLIB }}/README
           retention-days: 5
 
   create-zip:
@@ -225,11 +250,10 @@ jobs:
         with:
           repository: nginx/nginx
 
-      - name: Download nginx.exe
+      - name: Download build artifacts
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
         with:
-          name: windows-binary
-          path: ${{ needs.build-windows.outputs.objs }}/
+          name: windows-build
 
       - name: Install build tools
         run: |
@@ -238,47 +262,18 @@ jobs:
             libxml2-utils \
             xsltproc
 
-      - name: Download dependencies (for license files)
-        run: |
-          download() {
-            local url="$1" file="$2" name="$3"
-            echo "Downloading ${name}..."
-            if ! curl -fSL -o "$file" "$url"; then
-              echo "::error::Failed to download ${name} from ${url}"
-              exit 1
-            fi
-            file "$file" | grep -q "gzip" || { echo "::error::${name} is not a valid gzip archive"; exit 1; }
-            tar xzf "$file" && rm "$file"
-          }
-
-          OV="${{ needs.build-windows.outputs.openssl_ver }}"
-          ZV="${{ needs.build-windows.outputs.zlib_ver }}"
-          PV="${{ needs.build-windows.outputs.pcre_ver }}"
-          OBJS="${{ needs.build-windows.outputs.objs }}"
-
-          mkdir -p ${OBJS}/lib && cd ${OBJS}/lib
-
-          # TODO: Switch these URLs to Artifactory when available
-          download \
-            "https://github.com/openssl/openssl/releases/download/openssl-${OV}/openssl-${OV}.tar.gz" \
-            openssl.tar.gz "OpenSSL ${OV}"
-
-          download \
-            "https://github.com/madler/zlib/releases/download/v${ZV}/zlib-${ZV}.tar.gz" \
-            zlib.tar.gz "zlib ${ZV}"
-
-          download \
-            "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-${PV}/pcre2-${PV}.tar.gz" \
-            pcre2.tar.gz "PCRE2 ${PV}"
-
       - name: Create ZIP
         run: |
           OBJS="${{ needs.build-windows.outputs.objs }}"
+          OPENSSL="${{ needs.build-windows.outputs.openssl }}"
+          ZLIB="${{ needs.build-windows.outputs.zlib }}"
+          PCRE="${{ needs.build-windows.outputs.pcre }}"
 
           # Fix BSD sed syntax for GNU/Linux: sed -i '' → sed -i
           sed -i "s/sed -i '' /sed -i /" misc/GNUmakefile
 
-          make -f misc/GNUmakefile zip OBJS=${OBJS}
+          make -f misc/GNUmakefile zip \
+            OBJS="$OBJS" OPENSSL="$OPENSSL" ZLIB="$ZLIB" PCRE="$PCRE"
 
           NGINX_VER="${{ needs.build-windows.outputs.nginx_ver }}"
           [ -f "nginx-${NGINX_VER}.zip" ] || { echo "::error::ZIP not created"; exit 1; }
