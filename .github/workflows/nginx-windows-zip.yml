@@ -283,11 +283,14 @@ jobs:
           ls -la nginx-${NGINX_VER}.zip
           echo "- ZIP: \`nginx-${NGINX_VER}.zip\` (\`$(ls -lh "nginx-${NGINX_VER}.zip" | awk '{print $5}')\`)" >> "$GITHUB_STEP_SUMMARY"
 
+      # Upload the prepared directory (tmp/nginx-<ver>/) as a workflow artifact.
+      # When downloaded from the GitHub UI, this becomes a ZIP with the correct
+      # nginx-<ver>/ top-level directory — avoiding a ZIP-inside-ZIP.
       - name: Upload ZIP as workflow artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
-          name: nginx-${{ needs.build-windows.outputs.nginx_ver }}-windows-zip
-          path: nginx-${{ needs.build-windows.outputs.nginx_ver }}.zip
+          name: nginx-${{ needs.build-windows.outputs.nginx_ver }}
+          path: tmp/
           retention-days: 5
 
       # TODO: Add F5 signing endpoint integration
