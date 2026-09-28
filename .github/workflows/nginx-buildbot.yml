@@ -672,7 +672,7 @@ jobs:
                         --with-stream_geoip_module \
                         --with-http_perl_module \
                         --with-debug \
-          || cat build/autoconf.err
+          || cat objs/autoconf.err
           make CFLAGS='-Xclang -load -Xclang ./clang-ast/ngx-ast.so -Xclang -plugin -Xclang ngx-ast -DNGX_QUIC_DEBUG_PACKETS -DNGX_QUIC_DEBUG_FRAMES -DNGX_QUIC_DEBUG_ALLOC -DNGX_QUIC_DEBUG_CRYPTO' LINK=: CC=clang-14
 
   # FreeBSD builds with different SSL libraries
