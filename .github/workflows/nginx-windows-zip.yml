@@ -44,7 +44,7 @@ jobs:
       objs: ${{ steps.deps.outputs.objs }}
     defaults:
       run:
-        shell: C:\Tools\msys64\msys2_shell.cmd -defterm -no-start -where . -full-path -shell bash.exe -Eeo pipefail -x '{0}'
+        shell: C:\Tools\msys64\msys2_shell.cmd -defterm -no-start -where . -full-path -shell bash.exe -Eeo pipefail '{0}'
 
     steps:
       - name: Check out nginx sources
