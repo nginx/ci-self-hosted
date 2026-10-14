@@ -223,6 +223,7 @@ jobs:
             case "${{ matrix.subarch }}" in
               x86)
                 NGINX_CONFIGURE_CMD_APPEND="--with-perl=/usr/bin/perl5.36-i386-linux-gnu"
+                QUICKJS_MAKE_OPT="CONFIG_TEMPORAL_INTL="
                 ;;
             esac
 
@@ -235,6 +236,7 @@ jobs:
             esac
 
             echo NGINX_CONFIGURE_CMD="$NGINX_CONFIGURE_CMD $NGINX_CONFIGURE_CMD_APPEND" >> $GITHUB_ENV
+            echo QUICKJS_MAKE_OPT="$QUICKJS_MAKE_OPT" >> $GITHUB_ENV
 
             case "${{ matrix.os }}" in
               freebsd-*)
@@ -257,7 +259,7 @@ jobs:
         run: |
           git clone https://github.com/bellard/quickjs
           cd quickjs
-          CFLAGS="$CC_OPT -fPIC" LDFLAGS=$LD_OPT $MAKE_UTILITY -j$(nproc) libquickjs.a
+          CFLAGS="$CC_OPT -fPIC" LDFLAGS=$LD_OPT $MAKE_UTILITY -j$(nproc) $QUICKJS_MAKE_OPT libquickjs.a
 
       - name: Check out and build quickjs-ng
         run: |
