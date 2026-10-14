@@ -193,11 +193,11 @@ jobs:
             )
 
             case "$(echo $ENV_JSON | jq -r '."${{ matrix.os }}".type')" in
-              "apk"|"rpm"|"bsd")
+              apk|rpm|bsd)
                 echo CC_OPT=$(echo $ENV_JSON | jq -r '."${{ matrix.os }}".CC_OPT') >> $GITHUB_ENV
                 echo LD_OPT=$(echo $ENV_JSON | jq -r '."${{ matrix.os }}".LD_OPT') >> $GITHUB_ENV
                 ;;
-              "deb")
+              deb)
                 export DEB_BUILD_MAINT_OPTIONS=$(echo $ENV_JSON | jq -r '."${{ matrix.os }}".DEB_BUILD_MAINT_OPTIONS')
                 export DEB_CFLAGS_MAINT_APPEND=$(echo $ENV_JSON | jq -r '."${{ matrix.os }}".DEB_CFLAGS_MAINT_APPEND')
                 export DEB_LDFLAGS_MAINT_APPEND=$(echo $ENV_JSON | jq -r '."${{ matrix.os }}".DEB_LDFLAGS_MAINT_APPEND')
@@ -212,7 +212,7 @@ jobs:
                 LD_OPT=$(echo $ENV_JSON | jq -r '."${{ matrix.os }}".LD_OPT')
                 echo LD_OPT="$LD_OPT_ADD $($LD_OPT)" >> $GITHUB_ENV
                 ;;
-              "*")
+              *)
                 echo "Unknown OS type, exiting"
                 exit 1
                 ;;
