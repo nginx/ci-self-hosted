@@ -1,0 +1,285 @@
+name: windows-zip
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  check-if-allowed:
+    runs-on: [ ubuntu-24.04 ]
+    steps:
+      - name: Check if we're in the allowed environment
+        run: |
+          org_found=0
+          event_found=0
+          ALLOWED_ORGS="nginx nginxinc"
+          ALLOWED_EVENTS="push workflow_dispatch"
+          for org in $ALLOWED_ORGS; do
+            if [ "$org" == "$GITHUB_REPOSITORY_OWNER" ]; then org_found=1; fi
+          done
+          for event in $ALLOWED_EVENTS; do
+            if [ "$event" == "$GITHUB_EVENT_NAME" ]; then event_found=1; fi
+          done
+          if [ $org_found$event_found -ne 11 ]; then
+            echo "Repository owner or event are not explicitly allowed to use this workflow: $GITHUB_REPOSITORY_OWNER, $GITHUB_EVENT_NAME"
+            exit 1
+          fi
+          exit 0
+
+  build-windows:
+    name: Build Windows binary
+    runs-on: windows-2022-amd64
+    needs: check-if-allowed
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      nginx_ver: ${{ steps.version.outputs.nginx_ver }}
+      openssl: ${{ steps.deps.outputs.openssl }}
+      zlib: ${{ steps.deps.outputs.zlib }}
+      pcre: ${{ steps.deps.outputs.pcre }}
+      objs: ${{ steps.deps.outputs.objs }}
+    defaults:
+      run:
+        shell: C:\Tools\msys64\msys2_shell.cmd -defterm -no-start -where . -full-path -shell bash.exe -Eeo pipefail '{0}'
+
+    steps:
+      - name: Check out nginx sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Check out nginx tests
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          repository: nginx/nginx-tests
+          path: nginx-tests
+
+      - name: Get access secrets from Azure
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
+        with:
+          client-id: ${{ secrets.NGINX_OSS_CLIENT_ID }}
+          tenant-id: ${{ secrets.NGINX_OSS_TENANT_ID }}
+          vault-name: ${{ secrets.NGINX_COMMON_VAULT_NAME }}
+          secret-names: "artifactory-service-user-nginx, artifactory-service-user-nginx-token"
+          env-names: "ARTIFACTORY_USER, ARTIFACTORY_TOKEN"
+
+      - name: Get repo secrets from Azure
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
+        with:
+          client-id: ${{ secrets.NGINX_OSS_CLIENT_ID }}
+          tenant-id: ${{ secrets.NGINX_OSS_TENANT_ID }}
+          vault-name: ${{ secrets.NGINX_OSS_VAULT_NAME }}
+          secret-names: "artifactory-repo-github-packages-dev"
+          env-names: "ARTIFACTORY_URL"
+
+      - name: Set MSYSTEM
+        run: |
+          echo MSYSTEM=MINGW64 >> $GITHUB_ENV
+
+      - name: Extract nginx version
+        id: version
+        run: |
+          NGINX_VER=$(grep 'define NGINX_VERSION' src/core/nginx.h \
+            | sed -e 's/^.*"\(.*\)".*/\1/')
+          echo "nginx_ver=$NGINX_VER" >> "$GITHUB_OUTPUT"
+          echo "NGINX_VER=$NGINX_VER" >> $GITHUB_ENV
+          echo "nginx version: $NGINX_VER"
+
+      - name: Detect dependency versions from misc/GNUmakefile
+        id: deps
+        run: |
+          print_var() {
+            make -f misc/GNUmakefile --eval="print_$1: ; @echo \$($1)" "print_$1"
+          }
+
+          OPENSSL=$(print_var OPENSSL)
+          ZLIB=$(print_var ZLIB)
+          PCRE=$(print_var PCRE)
+          OBJS=$(print_var OBJS)
+
+          # Extract just the version numbers (strip package name prefix)
+          OPENSSL_VER=$(echo "$OPENSSL" | cut -d- -f2-)
+          ZLIB_VER=$(echo "$ZLIB" | cut -d- -f2-)
+          PCRE_VER=$(echo "$PCRE" | cut -d- -f2-)
+
+          # Validate that we got values
+          for pair in "OPENSSL:$OPENSSL" "ZLIB:$ZLIB" "PCRE:$PCRE" "OBJS:$OBJS"; do
+            name="${pair%%:*}"; val="${pair#*:}"
+            if [ -z "$val" ]; then
+              echo "::error::Could not detect ${name} from misc/GNUmakefile"
+              exit 1
+            fi
+          done
+
+          echo "OPENSSL=$OPENSSL" >> $GITHUB_ENV
+          echo "ZLIB=$ZLIB" >> $GITHUB_ENV
+          echo "PCRE=$PCRE" >> $GITHUB_ENV
+          echo "OBJS=$OBJS" >> $GITHUB_ENV
+          echo "OPENSSL_VER=$OPENSSL_VER" >> $GITHUB_ENV
+          echo "ZLIB_VER=$ZLIB_VER" >> $GITHUB_ENV
+          echo "PCRE_VER=$PCRE_VER" >> $GITHUB_ENV
+
+          # Set outputs for the create-zip job
+          echo "openssl=$OPENSSL" >> "$GITHUB_OUTPUT"
+          echo "zlib=$ZLIB" >> "$GITHUB_OUTPUT"
+          echo "pcre=$PCRE" >> "$GITHUB_OUTPUT"
+          echo "objs=$OBJS" >> "$GITHUB_OUTPUT"
+
+          echo "Detected versions:"
+          echo "  OPENSSL=$OPENSSL (ver: $OPENSSL_VER)"
+          echo "  ZLIB=$ZLIB (ver: $ZLIB_VER)"
+          echo "  PCRE=$PCRE (ver: $PCRE_VER)"
+          echo "  OBJS=$OBJS"
+
+      - name: Set up environment
+        run: |
+          echo "VCVARSALL=$('C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe' -products \* -latest -property installationPath)\\VC\\Auxiliary\\Build\\vcvarsall.bat" >> $GITHUB_ENV
+          echo "VCARCH=x64" >> $GITHUB_ENV
+          echo "CL=/MP" >> $GITHUB_ENV
+
+          echo 'TEMP=C:\TEMP' >> $GITHUB_ENV
+          echo 'TMP=C:\TEMP' >> $GITHUB_ENV
+          echo 'TMPDIR=C:\TEMP' >> $GITHUB_ENV
+
+          mkdir -p C:/TEMP/
+          mkdir -p C:/tmp/
+          mkdir -p t/
+
+      - name: Download and unpack dependencies
+        run: |
+          mkdir -p ${{ env.OBJS }}/lib
+
+          NETRC=.netrc
+          trap 'rm -f "$NETRC"' EXIT
+
+          ARTIFACTORY_HOST=${ARTIFACTORY_URL#*://}
+          ARTIFACTORY_HOST=${ARTIFACTORY_HOST%%/*}
+          ARTIFACTORY_HOST=${ARTIFACTORY_HOST%%:*}
+          printf 'machine %s login %s password %s\n' \
+            "$ARTIFACTORY_HOST" "$ARTIFACTORY_USER" "$ARTIFACTORY_TOKEN" > "$NETRC"
+
+          fetch() {
+            local tarball="${1##*/}"
+            echo "Fetching $tarball from Artifactory..."
+            if ! curl --netrc-file "$NETRC" \
+                      --fail --location --silent --show-error \
+                      --connect-timeout 30 \
+                      --retry 3 --retry-delay 5 --retry-connrefused \
+                      --output "$tarball" "${ARTIFACTORY_URL%/}/$1"; then
+              echo "::error::Failed to fetch $tarball from Artifactory (path: $1)"
+              exit 1
+            fi
+            if ! gzip -t "$tarball" 2>/dev/null; then
+              echo "::error::$tarball is not a valid gzip archive (path: $1), most likely an error page"
+              exit 1
+            fi
+            tar -C ${{ env.OBJS }}/lib -xzf "./$tarball"
+          }
+
+          fetch "PCRE2Project/pcre2/releases/download/pcre2-${{ env.PCRE_VER }}/pcre2-${{ env.PCRE_VER }}.tar.gz"
+          echo '#include <stdint.h>' > ${{ env.OBJS }}/lib/${{ env.PCRE }}/src/inttypes.h
+
+          fetch "madler/zlib/releases/download/v${{ env.ZLIB_VER }}/zlib-${{ env.ZLIB_VER }}.tar.gz"
+
+          fetch "openssl/openssl/releases/download/openssl-${{ env.OPENSSL_VER }}/openssl-${{ env.OPENSSL_VER }}.tar.gz"
+
+          echo "Dependencies downloaded and unpacked:"
+          ls -la ${{ env.OBJS }}/lib/
+
+      - name: Verify dependencies
+        run: |
+          [ -d "${{ env.OBJS }}/lib/${{ env.OPENSSL }}" ]                    || { echo "::error::OpenSSL dir not found"; exit 1; }
+          [ -f "${{ env.OBJS }}/lib/${{ env.ZLIB }}/zlib.h" ]               || { echo "::error::zlib.h not found"; exit 1; }
+          [ -f "${{ env.OBJS }}/lib/${{ env.PCRE }}/src/pcre2.h.generic" ]   || { echo "::error::PCRE2 headers not found"; exit 1; }
+          [ -f "${{ env.OBJS }}/lib/${{ env.PCRE }}/src/inttypes.h" ]        || { echo "::error::PCRE2 inttypes.h fix missing"; exit 1; }
+          echo "All dependencies verified"
+
+      - name: Configure nginx
+        shell: cmd
+        run: |
+          @echo on
+          call "%VCVARSALL%" %VCARCH%
+          bash.exe -c "make -f misc/GNUmakefile win32 CC=cl OBJS=%OBJS%"
+
+      - name: Compile nginx
+        shell: cmd
+        run: |
+          @echo on
+          call "%VCVARSALL%" %VCARCH%
+          nmake -f %OBJS%\Makefile
+
+      - name: Verify build
+        run: |
+          [ -f "${{ env.OBJS }}/nginx.exe" ] || { echo "::error::nginx.exe was not created"; exit 1; }
+          ls -lh ${{ env.OBJS }}/nginx.exe
+          echo "- nginx.exe: \`$(ls -lh ${{ env.OBJS }}/nginx.exe | awk '{print $5}')\`" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Run tests
+        shell: cmd
+        working-directory: nginx-tests
+        run: |
+          prove --state=save ../t . || prove -v --state=failed
+        env:
+          TEST_NGINX_BINARY: "${{ github.workspace }}\\${{ env.OBJS }}\\nginx.exe"
+          TEST_NGINX_VERBOSE: 1
+          PERL5LIB: "${{ github.workspace }}\\nginx-tests\\lib"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: windows-build
+          path: |
+            ${{ env.OBJS }}/nginx.exe
+            ${{ env.OBJS }}/lib/${{ env.OPENSSL }}/LICENSE.txt
+            ${{ env.OBJS }}/lib/${{ env.PCRE }}/LICENCE.md
+            ${{ env.OBJS }}/lib/${{ env.ZLIB }}/README
+          retention-days: 5
+
+  create-zip:
+    needs: build-windows
+    runs-on: ubuntu-24.04-amd64
+
+    steps:
+      - name: Check out nginx sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: windows-build
+          path: ${{ needs.build-windows.outputs.objs }}
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libxml2-utils \
+            xsltproc
+
+      - name: Create ZIP
+        run: |
+          OBJS="${{ needs.build-windows.outputs.objs }}"
+          OPENSSL="${{ needs.build-windows.outputs.openssl }}"
+          ZLIB="${{ needs.build-windows.outputs.zlib }}"
+          PCRE="${{ needs.build-windows.outputs.pcre }}"
+
+          # Fix BSD sed syntax for GNU/Linux: sed -i '' → sed -i
+          sed -i "s/sed -i '' /sed -i /" misc/GNUmakefile
+
+          make -f misc/GNUmakefile zip \
+            OBJS="$OBJS" OPENSSL="$OPENSSL" ZLIB="$ZLIB" PCRE="$PCRE"
+
+          NGINX_VER="${{ needs.build-windows.outputs.nginx_ver }}"
+          [ -f "nginx-${NGINX_VER}.zip" ] || { echo "::error::ZIP not created"; exit 1; }
+
+          echo "ZIP created:"
+          ls -la nginx-${NGINX_VER}.zip
+          echo "- ZIP: \`nginx-${NGINX_VER}.zip\` (\`$(ls -lh "nginx-${NGINX_VER}.zip" | awk '{print $5}')\`)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload ZIP as workflow artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: nginx-${{ needs.build-windows.outputs.nginx_ver }}
+          path: tmp/
+          retention-days: 5
