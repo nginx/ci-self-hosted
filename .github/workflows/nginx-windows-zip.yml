@@ -1,7 +1,6 @@
 name: nginx-windows-zip
 
 on:
-  # The caller must use "secrets: inherit" and grant "id-token: write".
   workflow_call:
 
 permissions:
@@ -179,7 +178,6 @@ jobs:
           }
 
           fetch "PCRE2Project/pcre2/releases/download/pcre2-${{ env.PCRE_VER }}/pcre2-${{ env.PCRE_VER }}.tar.gz"
-          echo '#include <stdint.h>' > ${{ env.OBJS }}/lib/${{ env.PCRE }}/src/inttypes.h
 
           fetch "madler/zlib/releases/download/v${{ env.ZLIB_VER }}/zlib-${{ env.ZLIB_VER }}.tar.gz"
 
@@ -193,7 +191,6 @@ jobs:
           [ -d "${{ env.OBJS }}/lib/${{ env.OPENSSL }}" ]                    || { echo "::error::OpenSSL dir not found"; exit 1; }
           [ -f "${{ env.OBJS }}/lib/${{ env.ZLIB }}/zlib.h" ]               || { echo "::error::zlib.h not found"; exit 1; }
           [ -f "${{ env.OBJS }}/lib/${{ env.PCRE }}/src/pcre2.h.generic" ]   || { echo "::error::PCRE2 headers not found"; exit 1; }
-          [ -f "${{ env.OBJS }}/lib/${{ env.PCRE }}/src/inttypes.h" ]        || { echo "::error::PCRE2 inttypes.h fix missing"; exit 1; }
           echo "All dependencies verified"
 
       - name: Configure nginx
@@ -238,7 +235,6 @@ jobs:
           retention-days: 5
 
   create-zip:
-    name: Create ZIP package
     needs: build-windows
     runs-on: ubuntu-24.04-amd64
 
@@ -279,30 +275,9 @@ jobs:
           ls -la nginx-${NGINX_VER}.zip
           echo "- ZIP: \`nginx-${NGINX_VER}.zip\` (\`$(ls -lh "nginx-${NGINX_VER}.zip" | awk '{print $5}')\`)" >> "$GITHUB_STEP_SUMMARY"
 
-      # Upload the prepared directory (tmp/nginx-<ver>/) as a workflow artifact.
-      # When downloaded from the GitHub UI, this becomes a ZIP with the correct
-      # nginx-<ver>/ top-level directory — avoiding a ZIP-inside-ZIP.
       - name: Upload ZIP as workflow artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: nginx-${{ needs.build-windows.outputs.nginx_ver }}
           path: tmp/
           retention-days: 5
-
-      # TODO: Add F5 signing endpoint integration
-      # - name: Sign ZIP via F5 endpoint
-      #   run: |
-      #     # curl to F5 signing API
-      #     # Upload nginx-${{ needs.build-windows.outputs.nginx_ver }}.zip
-      #     # Download signed ZIP
-
-      # TODO: Add preview location upload
-      # - name: Upload signed ZIP to preview location
-      #   run: |
-      #     # Upload to F5 preview/staging location
-
-      # TODO: Add GitHub Releases upload (for release tags)
-      # - name: Upload to GitHub Releases
-      #   if: startsWith(github.ref, 'refs/tags/release-')
-      #   run: |
-      #     # Upload signed ZIP to GitHub Releases page
