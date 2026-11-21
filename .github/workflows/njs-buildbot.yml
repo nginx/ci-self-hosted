@@ -222,7 +222,9 @@ jobs:
             NGINX_CONFIGURE_CMD_APPEND=$(echo $ENV_JSON | jq -r '."${{ matrix.os }}".NGINX_CONFIGURE_CMD_APPEND // empty')
             case "${{ matrix.subarch }}" in
               x86)
-                NGINX_CONFIGURE_CMD_APPEND="--with-perl=/usr/bin/perl5.36-i386-linux-gnu"
+                HARNESS_PERL=/usr/bin/perl5.36-i386-linux-gnu
+                NGINX_CONFIGURE_CMD_APPEND="--with-perl=$HARNESS_PERL"
+                echo HARNESS_PERL="$HARNESS_PERL" >> $GITHUB_ENV
                 QUICKJS_MAKE_OPT="CONFIG_TEMPORAL_INTL="
                 ;;
             esac
