@@ -135,7 +135,7 @@ jobs:
       - name: Set up environment
         run: |
           echo "VCVARSALL=$('C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe' -products \* -latest -property installationPath)\\VC\\Auxiliary\\Build\\vcvarsall.bat" >> $GITHUB_ENV
-          echo "VCARCH=x64" >> $GITHUB_ENV
+          echo "VCARCH=x86" >> $GITHUB_ENV
           echo "CL=/MP" >> $GITHUB_ENV
 
           echo 'TEMP=C:\TEMP' >> $GITHUB_ENV
